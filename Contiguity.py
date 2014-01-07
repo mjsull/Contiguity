@@ -240,9 +240,12 @@ class App:
     def addtolist(self, event):
         contig = self.canvas.gettags(CURRENT)[0][1:]
         if '_dup' in contig:
+            dupno = int(contig.split('_dup')[1])
             contig = contig.split('_dup')[0]
+        else:
+            dupno = 0
         self.namelist.insert(END, contig)
-        if self.contigDict[contig].orient:
+        if self.contigDict[contig].orient[dupno]:
             self.dirlist.insert(END, '+')
         else:
             self.dirlist.insert(END, '-')
@@ -1830,6 +1833,40 @@ class App:
 
 
     def ok_self_compare(self):
+        try:
+            if self.thethread.is_alive():
+                tkMessageBox.showerror('Already running process',
+                                       'Please wait until current tasks have finished before running another process.')
+                return
+        except:
+            pass
+        self.blast_options.destroy()
+        self.queue = Queue.Queue()
+        self.thethread = threading.Thread(target=self.self_hits_thread)
+        self.thethread.start()
+        self.update_self_hits()
+
+
+    def update_self_hits(self):
+        while self.queue.qsize():
+            try:
+                text = self.queue.get(0)
+                self.update_console(text)
+                if text != 'Hits found.':
+                    root.after(1000, self.update_self_hits)
+                else:
+                    self.draw_self_hits()
+                return
+            except Queue.Empty:
+                pass
+        if not self.thethread.is_alive():
+            self.update_console('Self comparison failed, please check console output.')
+            return
+        elif not self.queue.qsize():
+            root.after(1000, self.update_self_hits)
+            return
+
+    def self_hits_thread(self):
         stderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
         subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
                          self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
@@ -1837,7 +1874,7 @@ class App:
                          self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/contigscontigs.out', shell=True).wait()
         stderr.close()
         blastfile = open(self.workingDir.get() + '/contigscontigs.out')
-        self.update_console('Comparison created.')
+        self.queue.put('Comparison created.')
         self.selfhit = []
         for line in blastfile:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = line.split()
@@ -1851,31 +1888,33 @@ class App:
                 elif self.intra.get() == 1:
                     if qstart < min([rstart, rstop]):
                         self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
-        self.update_console('Hits found.')
         blastfile.close()
-        print len(self.selfhit)
-        print len(self.visible)
+        self.queue.put('Hits found.')
+
+
+    def draw_self_hits(self):
         for i in self.selfhit:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
-            print query, subject, qstart, qstop, rstart, rstop, self.contigDict[query].scaledown, self.contigDict[subject].scaledown
-            print self.contigDict[query].xpos, self.contigDict[query].ypos
-            print self.contigDict[subject].xpos, self.contigDict[subject].ypos
             if query in self.visible and subject in self.visible:
                 print 'ding'
                 if rstart < rstop:
                     colour = '#F85931'
                 else:
                     colour = '#EDB92E'
-                self.canvas.create_rectangle(self.contigDict[query].xpos + qstart / self.contigDict[query].scaledown, self.contigDict[query].ypos,
-                                             self.contigDict[query].xpos + qstop / self.contigDict[query].scaledown, self.contigDict[query].ypos + self.contigheight,\
+                qcoords = self.canvas.coords('c' + query)
+                rcoords = self.canvas.coords('c' + subject)
+                print qcoords
+                print rcoords
+                self.canvas.create_rectangle(qcoords[0] + qstart / self.contigDict[query].scaledown, qcoords[1],
+                                             qcoords[0] + qstop / self.contigDict[query].scaledown, qcoords[3],\
                                               fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h'))
-                self.canvas.create_rectangle(self.contigDict[subject].xpos + rstart / self.contigDict[subject].scaledown, self.contigDict[subject].ypos,
-                                             self.contigDict[subject].xpos + rstop / self.contigDict[subject].scaledown, self.contigDict[subject].ypos + self.contigheight,\
+                self.canvas.create_rectangle(rcoords[0] + rstart / self.contigDict[subject].scaledown, rcoords[1],
+                                             rcoords[0] + rstop / self.contigDict[subject].scaledown, rcoords[3],\
                                               fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h'))
-                startx = ((self.contigDict[query].xpos + qstart / self.contigDict[query].scaledown) + (self.contigDict[query].xpos + qstop / self.contigDict[query].scaledown)) / 2
-                starty = self.contigDict[query].ypos + self.contigheight / 2
-                endx = ((self.contigDict[subject].xpos + rstart / self.contigDict[subject].scaledown) + (self.contigDict[subject].xpos + rstop / self.contigDict[subject].scaledown)) / 2
-                endy = self.contigDict[subject].ypos + self.contigheight / 2
+                startx = ((qcoords[0] + qstart / self.contigDict[query].scaledown) + (qcoords[0] + qstop / self.contigDict[query].scaledown)) / 2
+                starty = qcoords[1] + self.contigheight / 2
+                endx = ((rcoords[0] + rstart / self.contigDict[subject].scaledown) + (rcoords[0] + rstop / self.contigDict[subject].scaledown)) / 2
+                endy = rcoords[1] + self.contigheight / 2
                 self.canvas.create_line(startx, starty, (startx + endx) / 2, abs(startx - endx) /4 + (starty + endy) / 2, endx, endy,\
                                          smooth=True, width=3, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
         self.canvas.tag_raise('arc')
