@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# Contiguity   Written by: Mitchell Sullivan   mjsull@gmail.com
+# Supervisor: Dr. Scott Beatson
+# Version 0.9 08.01.2014
+# License: GPLv3
+
 from Tkinter import *
 import math
 import tkFileDialog
@@ -185,6 +191,7 @@ class App:
         self.canvas.bind('<MouseWheel>', self.zoomcanvas)
         self.canvas.bind('<Button-1>', self.removerc)
         self.csagfile = StringVar(value='')
+        self.selfcomparefile = StringVar(value='')
         self.reffile = StringVar(value='/home/mitch/plas.fa')
         self.blastfile = StringVar(value='/home/mitch/temp/query_tempdb.out')
         self.contigfile = StringVar(value='/home/mitch/curr_proj/coif/UTI89-2_51_Contigs.fasta')
@@ -236,20 +243,38 @@ class App:
         self.hitlist = None
         self.leftmost = None
         self.rightmost = None
+        self.selected = []
 
     def addtolist(self, event):
-        contig = self.canvas.gettags(CURRENT)[0][1:]
-        if '_dup' in contig:
-            dupno = int(contig.split('_dup')[1])
-            contig = contig.split('_dup')[0]
+        thetag = self.canvas.gettags(CURRENT)[0]
+        thecontig = self.canvas.find_withtag(thetag)[0]
+        thecolour = self.canvas.itemcget(thecontig, "fill")
+        if thecolour == "#009989":
+            self.canvas.itemconfig(thecontig, fill='#A3A948')
+            contig = thetag[1:]
+            if '_dup' in contig:
+                dupno = int(contig.split('_dup')[1])
+                contig = contig.split('_dup')[0]
+            else:
+                dupno = 0
+            self.namelist.insert(END, contig)
+            if self.contigDict[contig].orient[dupno]:
+                self.dirlist.insert(END, '+')
+            else:
+                self.dirlist.insert(END, '-')
+            self.lengthlist.insert(END, str(self.contigDict[contig].length))
+            self.selected.append(thetag)
         else:
-            dupno = 0
-        self.namelist.insert(END, contig)
-        if self.contigDict[contig].orient[dupno]:
-            self.dirlist.insert(END, '+')
-        else:
-            self.dirlist.insert(END, '-')
-        self.lengthlist.insert(END, str(self.contigDict[contig].length))
+            self.canvas.itemconfig(thecontig, fill='#009989')
+            for i in range(len(self.selected)):
+                if self.selected[i] == thetag:
+                    self.namelist.delete(i)
+                    self.dirlist.delete(i)
+                    self.lengthlist.delete(i)
+                    self.selected.pop(i)
+                    break
+
+
 
     def contiglistview(self, *args):
         apply(self.namelist.yview, args)
@@ -393,8 +418,7 @@ class App:
                 colour = self.canvas.itemcget(i, "fill")
                 self.canvas.create_polygon(x[0], x[1], x[2], x[3], x[4] + mod, x[5] + mod, x[6] + mod, x[7] + mod, \
                                            fill=colour, outline="black", tags=(newtag + 'b', self.canvas.gettags(i)[1], 'blast'))
-        colour = self.canvas.itemcget(contig[0], "fill")
-        self.canvas.create_rectangle(bb[0] + mod, bb[1] + mod, bb[2] + mod, bb[3] + mod, fill=colour, tags=(newtag, 'contig', 'map'))
+        self.canvas.create_rectangle(bb[0] + mod, bb[1] + mod, bb[2] + mod, bb[3] + mod, fill='#009989', tags=(newtag, 'contig', 'map'))
         htag = thetag + 'h'
         selfhits = self.canvas.find_withtag(htag)
         for i in selfhits:
@@ -652,7 +676,13 @@ class App:
         if filename == '':
             return
         self.reffile.set(filename)
-        
+
+    def loadselfcomp(self):
+        filename = tkFileDialog.askopenfilename(parent=self.blast_options)
+        if filename == '':
+            return
+        self.selfcompfile.set(filename)
+
     def loadblast(self):
         filename = tkFileDialog.askopenfilename(parent=self.blast_options)
         if filename == '':
@@ -881,35 +911,42 @@ class App:
         fastafile = open(self.contigfile.get())
         namelist = []
         maxlen = 0
+        getvel = False
         for line in fastafile:
             if line.startswith('>'):
-                namelist.append(line.rstrip())
+                namelist.append(line.split()[0])
                 if maxlen < len(namelist[-1]):
                     maxlen = len(namelist[-1])
-        for i in range(maxlen):
-            startletter = namelist[0][i]
-            same = True
-            for j in namelist[1:]:
-                if j[i] != startletter:
-                    same = False
+        splitlist = namelist[0].split('_')
+        if len(splitlist) > 2 and splitlist[0] == '>NODE' and splitlist[1].isdigit():
+            getvel = True
+        else:
+            for i in range(maxlen):
+                startletter = namelist[0][i]
+                same = True
+                for j in namelist[1:]:
+                    if j[i] != startletter:
+                        same = False
+                        break
+                if not same:
+                    cuta = i
                     break
-            if not same:
-                cuta = i
-                break
-            else:
-                cuta = 0
-        for i in range(1, maxlen):
-            startletter = namelist[0][-i]
-            same = True
-            for j in namelist[1:]:
-                if j[-i] != startletter:
-                    same = False
+                else:
+                    cuta = 0
+            for i in range(1, maxlen):
+                startletter = namelist[0][-i]
+                same = True
+                for j in namelist[1:]:
+                    if j[-i] != startletter:
+                        same = False
+                        break
+                if not same:
+                    cutb = -i + 1
+                    if cutb == 0:
+                        cutb = None
                     break
-            if not same:
-                cutb = -i + 1
-                break
-            else:
-                cutb = None
+                else:
+                    cutb = None
         fastafile.close()
         fastafile = open(self.contigfile.get())
         first = True
@@ -920,7 +957,10 @@ class App:
                 else:
                     aninstance = contig(name, seq)
                     self.contigDict[name] = aninstance
-                name = line.rstrip()[cuta:cutb]
+                if getvel:
+                    name = line.split('_')[1]
+                else:
+                    name = line.split()[0][cuta:cutb]
                 seq = ''
             else:
                 seq += line.rstrip()
@@ -934,7 +974,7 @@ class App:
         stderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
         subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
                          self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
-        subprocess.Popen('blastn -db ' + self.workingDir.get() + '/contigdb -outfmt 6 -num_threads 6 -query ' +
+        subprocess.Popen('blastn -db ' + self.workingDir.get() + '/contigdb -outfmt 6 -query ' +
                          self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/contigscontigs.out', shell=True).wait()
         stderr.close()
         blastfile = open(self.workingDir.get() + '/contigscontigs.out')
@@ -1803,6 +1843,12 @@ class App:
         self.frame2 = Frame(self.blast_options)
         self.blast_options.geometry('+20+30')
         self.blast_options.title('Self comparison')
+        self.reffilelabel = Label(self.frame2, text='Comparison file')
+        self.reffilelabel.grid(column=0, row=1)
+        self.reffileentry = Entry(self.frame2, textvariable=self.selfcompfile)
+        self.reffileentry.grid(column=1, row=1)
+        self.reffilebutton = Button(self.frame2, text='...', command=self.loadselfcomp)
+        self.reffilebutton.grid(column=2, row=1)
         self.intralabel = Label(self.frame2, text='Show intra contig hits')
         self.intralabel.grid(column=0, row=2)
         self.intraentry = Checkbutton(self.frame2, variable=self.intra)
@@ -1867,13 +1913,16 @@ class App:
             return
 
     def self_hits_thread(self):
-        stderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
-        subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
-                         self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
-        subprocess.Popen('blastn -db ' + self.workingDir.get() + '/contigdb -outfmt 6 -num_threads 8 -query ' +
-                         self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/contigscontigs.out', shell=True).wait()
-        stderr.close()
-        blastfile = open(self.workingDir.get() + '/contigscontigs.out')
+        if self.selfcomparefile.get() == '':
+            stderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
+            subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
+                             self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
+            subprocess.Popen('blastn -db ' + self.workingDir.get() + '/contigdb -outfmt 6 -num_threads 8 -query ' +
+                             self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/contigscontigs.out', shell=True).wait()
+            stderr.close()
+            blastfile = open(self.workingDir.get() + '/contigscontigs.out')
+        else:
+            blastfile = open(self.selfcomparefile.get())
         self.queue.put('Comparison created.')
         self.selfhit = []
         for line in blastfile:
