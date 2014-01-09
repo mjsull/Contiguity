@@ -5,6 +5,7 @@
 # License: GPLv3
 
 from Tkinter import *
+from ttk import Frame
 import math
 import tkFileDialog
 import tkSimpleDialog
@@ -103,7 +104,7 @@ class App:
         self.panes.add(self.utility, minsize=50)
         self.consoletext = StringVar(value='')
         self.console = Label(self.utility, bg='#FFFF99', relief=SUNKEN, textvariable=self.consoletext, anchor=SW, justify=LEFT)
-        self.utility.add(self.console, sticky=NSEW, height=30, width=90, minsize=100)
+        self.utility.add(self.console, sticky=NSEW, height=30, width=180, minsize=100)
         self.contiglist = Frame(self.utility)
         self.utility.add(self.contiglist, sticky=NSEW, minsize=120)
         self.dirframe = Frame(self.utility)
@@ -2826,6 +2827,6 @@ class App:
         
 root = Tk()
 root.title('Contiguity')
-root.option_add('*Font', 'TkDefaultFont 12')
+root.option_add('*Font', 'Heveltica 10')
 app = App(root)
 root.mainloop()
