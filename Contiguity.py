@@ -7,6 +7,7 @@
 from Tkinter import *
 import math
 import tkFileDialog
+import tkSimpleDialog
 import tkFont
 import tkMessageBox
 import gzip
@@ -48,29 +49,6 @@ class contig:
 
 
 
-
-class DDlistbox(Listbox):
-    def __init__(self, master, **kw):
-        kw['selectmode'] = SINGLE
-        Listbox.__init__(self, master, kw)
-        self.bind('<Button-1>', self.setCurrent)
-        self.bind('<B1-Motion>', self.shiftSelection)
-        self.curIndex = None
-    def setCurrent(self, event):
-        self.curIndex = self.nearest(event.y)
-    def shiftSelection(self, event):
-        i = self.nearest(event.y)
-        if i < self.curIndex:
-            x = self.get(i)
-            self.delete(i)
-            self.insert(i+1, x)
-            self.curIndex = i
-        elif i > self.curIndex:
-            x = self.get(i)
-            self.delete(i)
-            self.insert(i-1, x)
-            self.curIndex = i
-
 class App:
     def __init__(self, master):
         self.menubar = Menu(master)
@@ -85,16 +63,20 @@ class App:
         self.viewmenu = Menu(self.menubar, tearoff=0)
         self.viewmenu.add_command(label="View graph", command=self.view_options)
         self.viewmenu.add_command(label="Self comparison", command=self.self_compare)
+        self.viewmenu.add_command(label="Add contig", command=self.add_contig_dialogue)
         self.viewmenu.add_separator()
-        self.viewmenu.add_command(label="Shorten contigs", command=self.shorten_contigs)
-        self.viewmenu.add_command(label="Stretch contigs", command=self.stretch_contigs)
+        self.viewmenu.add_command(label="Find contig", command=self.find_contig)
         self.viewmenu.add_separator()
         self.viewmenu.add_command(label="Zoom in", command=self.zoominmenu)
         self.viewmenu.add_command(label="Zoom out", command=self.zoomoutmenu)
+        self.viewmenu.add_separator()
+        self.viewmenu.add_command(label="Shrink", command=self.shrink)
+        self.viewmenu.add_command(label="Stretch", command=self.stretch)
         self.menubar.add_cascade(label="View", menu=self.viewmenu)
         self.graphmenu = Menu(self.menubar, tearoff=0)
         self.graphmenu.add_command(label="Find paths", command=self.findPaths)
         self.graphmenu.add_command(label="Write fasta", command=self.writeFasta)
+        self.graphmenu.add_command(label="Write multifasta", command=self.writeMultiFasta)
         self.menubar.add_cascade(label="Selected", menu=self.graphmenu)
         self.currxscroll = 1000000
         self.curryscroll = 1000000
@@ -180,8 +162,10 @@ class App:
         self.canvas.tag_bind('map', '<Button-3>', self.rightClick)
         self.canvas.bind('<Button-2>', self.beginDrag)
         self.canvas.bind('<B2-Motion>', self.dragCanvas)
-        root.bind('+', self.zoomin)
-        root.bind('-', self.zoomout)
+        root.bind('w', self.zoomin)
+        root.bind('s', self.zoomout)
+        root.bind('a', self.shrink)
+        root.bind('d', self.stretch)
         root.bind('<Left>', self.scrollleft)
         root.bind('<Right>', self.scrollright)
         root.bind('<Up>', self.scrollup)
@@ -192,6 +176,8 @@ class App:
         self.canvas.bind('<Button-1>', self.removerc)
         self.csagfile = StringVar(value='')
         self.selfcomparefile = StringVar(value='')
+        self.outfile = StringVar(value='')
+        self.buffer = StringVar(value='nnnnnnnnnn')
         self.reffile = StringVar(value='/home/mitch/plas.fa')
         self.blastfile = StringVar(value='/home/mitch/temp/query_tempdb.out')
         self.contigfile = StringVar(value='/home/mitch/curr_proj/coif/UTI89-2_51_Contigs.fasta')
@@ -235,6 +221,10 @@ class App:
         self.visible = set()
         self.contigheight = 25
         self.scaledown = IntVar(value=100)
+        self.maxbp = IntVar(value=5000)
+        self.maxnode = IntVar(value=10)
+        self.maxpath = IntVar(value=1000000)
+        self.onlyshort = IntVar(value=1)
         self.originalxscroll = self.currxscroll
         self.originalyscroll = self.curryscroll
         self.refline = 50
@@ -244,6 +234,7 @@ class App:
         self.leftmost = None
         self.rightmost = None
         self.selected = []
+        self.newscaledown = self.scaledown.get()
 
     def addtolist(self, event):
         thetag = self.canvas.gettags(CURRENT)[0]
@@ -288,7 +279,9 @@ class App:
         pass
     
     def doublecontig(self, event):
-        pass
+        x = self.namelist.nearest(event.y)
+        self.goto(self.namelist.get(x))
+
 
     def beginDrag(self, event):
         self.canvas.scan_mark(event.x, event.y)  # initial middle-mouse click
@@ -308,6 +301,7 @@ class App:
         starttag = thetag + 's'
         endtag = thetag + 'e'
         btag = thetag + 'b'
+        self.visible.remove(thetag[1:])
         self.canvas.delete(thetag)
         self.canvas.delete(starttag)
         self.canvas.delete(endtag)
@@ -349,7 +343,7 @@ class App:
                 thecolour = "#EDB92E"
             else:
                 thecolour = "#F85931"
-            self.canvas.itemconfig(i, fill=thecolour)
+            self.canvas.itemconfig(self.canvas.gettags(i)[-1], fill=thecolour)
         endtag = thetag + 'b'
         bhits = self.canvas.find_withtag(endtag)
         if endtag[0] == 'r':
@@ -405,6 +399,7 @@ class App:
             dupnum = 0
         bb = self.canvas.coords(contig[0])
         newtag = 'c' + contigtag + '_dup' + str(self.contigDict[contigtag].dupnumber)
+        self.visible.add(newtag[1:])
         self.contigDict[contigtag].dupnumber += 1
         self.contigDict[contigtag].orient.append(self.contigDict[contigtag].orient[dupnum])
         mod = int(1.5*self.contigheight)
@@ -447,19 +442,193 @@ class App:
         except IndexError:
             pass
 
+    def add_contig(self, i):
+        if not i in self.visible:
+            self.visible.add(i)
+            placed = False
+            x1 = self.contigDict[i].xpos
+            y1 = self.contigDict[i].ypos
+            x2 = self.contigDict[i].xpos + self.contigDict[i].xlength
+            y2 = self.contigDict[i].ypos + self.contigheight
+            while not placed:
+                placed = True
+                for j in self.canvas.find_overlapping(x1, y1, x2, y2):
+                    if 'contig' in self.canvas.gettags(j):
+                        placed = False
+                        y1 += 30
+                        y2 += 30
+                        if y2 >= self.curryscroll:
+                            y1 = self.contigDict[i].ypos + 10
+                            y2 = self.contigDict[i].ypos + self.contigheight + 10
+                            placed = True
+                        break
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill="#009989", tags=('c' + i, 'contig', 'map'))
+            if self.contigDict[i].orient[0]:
+                dir = '+'
+            else:
+                dir = '-'
+            thetext = i + ' ' + dir + ' ' + self.contigDict[i].strlen
+            text = self.canvas.create_text(x1 + 2, y1 + self.contigheight/2, fill='white', font=self.customFont,
+                                           anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+            if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
+                self.canvas.delete(text)
+                thetext = i + ' ' + dir
+                text = self.canvas.create_text(x1 + 2, y1 + self.contigheight/2, fill='white', font=self.customFont,
+                                               anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
+                    self.canvas.delete(text)
+                    thetext = i
+                    text = self.canvas.create_text(x1 + 2, y1 + self.contigheight/2, fill='white', font=self.customFont,
+                                                   anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                    if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
+                        self.canvas.delete(text)
+            for j in self.contigDict[i].to:
+                if j[0] in self.visible:
+                    tocoords = self.canvas.coords('c' + j[0])
+                    startx = x2
+                    starty = y1 + self.contigheight /2
+                    endy = (tocoords[1] + tocoords[3]) /2
+                    if (j[1] and self.contigDict[j[0]].orient[0]) or (not j[1] and not self.contigDict[j[0]].orient[0]):
+                        endx = tocoords[0]
+                    else:
+                        endx = tocoords[2]
+                    self.canvas.create_line(startx, starty, (startx + endx) / 2, abs(startx - endx) /4 + (starty + endy) / 2, endx, endy,\
+                                            smooth=True, width=3, tags=('c' + i + 's', 'c' + j[0] + 'e', 'arc'))
+                    if self.contigDict[j[0]].dupnumber != 1:
+                        for k in range(1, int(self.contigDict[j[0]].dupnumber)):
+                            newtag = j[0] + '_dup' + str(k)
+                            if newtag in self.visible:
+                                tocoords = self.canvas.coords('c' + newtag)
+                                endy = (tocoords[1] + tocoords[3]) /2
+                                if (j[1] and self.contigDict[j[0]].orient[k]) or (not j[1] and not self.contigDict[j[0]].orient[k]):
+                                    endx = tocoords[0]
+                                else:
+                                    endx = tocoords[2]
+                                self.canvas.create_line(startx, starty, (startx + endx) / 2, abs(startx - endx) /4 + (starty + endy) / 2, endx, endy,
+                                                        smooth=True, width=3, tags=('c' + i + 's', 'c' + newtag + 'e', 'arc'))
+            for j in self.contigDict[i].fr:
+                if j[0] in self.visible:
+                    tocoords = self.canvas.coords('c' + j[0])
+                    startx = x1
+                    starty = y1 + self.contigheight /2
+                    endy = (tocoords[1] + tocoords[3]) /2
+                    if (j[1] and self.contigDict[j[0]].orient[0]) or (not j[1] and not self.contigDict[j[0]].orient[0]):
+                        endx = tocoords[0]
+                    else:
+                        endx = tocoords[2]
+                    self.canvas.create_line(startx, starty, (startx + endx) / 2, abs(startx - endx) /4 + (starty + endy) / 2, endx, endy,\
+                                            smooth=True, width=3, tags=('c' + i + 's', 'c' + j[0] + 'e', 'arc'))
+                    if self.contigDict[j[0]].dupnumber != 1:
+                        for k in range(1, int(self.contigDict[j[0]].dupnumber)):
+                            newtag = j[0] + '_dup' + str(k)
+                            if newtag in self.visible:
+                                tocoords = self.canvas.coords('c' + newtag)
+                                endy = (tocoords[1] + tocoords[3]) /2
+                                if (j[1] and self.contigDict[j[0]].orient[k]) or (not j[1] and not self.contigDict[j[0]].orient[k]):
+                                    endx = tocoords[0]
+                                else:
+                                    endx = tocoords[2]
+                                self.canvas.create_line(startx, starty, (startx + endx) / 2, abs(startx - endx) /4 + (starty + endy) / 2, endx, endy,
+                                                        smooth=True, width=3, tags=('c' + i + 's', 'c' + newtag + 'e', 'arc'))
+
+    def add_contig_dialogue(self):
+        contig = tkSimpleDialog.askstring('Add Contig', 'Contig name')
+        if contig is None:
+            return
+        if contig in self.visible:
+            self.goto(contig)
+        else:
+            self.contigDict[contig].visible = True
+            self.contigDict[contig].xpos = 50
+            self.contigDict[contig].ypos = 275
+            self.contigDict[contig].xlength = self.contigDict[contig].length / self.newscaledown
+            self.add_contig(contig)
+            self.canvas.xview_moveto(0)
+            self.canvas.yview_moveto(0)
+
+
     def show_to(self):
-        pass
+        thetag = self.rctag
+        if '_dup' in thetag:
+            contig = thetag.split('_dup')[0][1:]
+            dupnum = int(thetag.split('_dup')[1])
+        else:
+            contig = thetag[1:]
+            dupnum = 0
+        coords = self.canvas.coords(thetag)
+        startx = coords[2] + 10
+        starty = coords[1]
+        if self.contigDict[contig].orient[dupnum]:
+            for i in self.contigDict[contig].to:
+                if not i[0] in self.visible:
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].xpos = startx
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.add_contig(i[0])
+                    starty += 35
+        else:
+            for i in self.contigDict[contig].fr:
+                if not i[0] in self.visible:
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].xpos = startx
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.add_contig(i[0])
+                    starty += 35
+
+
 
     def show_from(self):
-        pass
+        thetag = self.rctag
+        if '_dup' in thetag:
+            contig = thetag.split('_dup')[0][1:]
+            dupnum = int(thetag.split('_dup')[1])
+        else:
+            contig = thetag[1:]
+            dupnum = 0
+        coords = self.canvas.coords(thetag)
+        startx = coords[0]
+        starty = coords[1]
+        if not self.contigDict[contig].orient[dupnum]:
+            for i in self.contigDict[contig].to:
+                if not i[0] in self.visible:
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.contigDict[i[0]].xpos = startx - 10 - self.contigDict[i[0]].xlength
+                    self.add_contig(contig)
+                    starty += 35
+        else:
+            for i in self.contigDict[contig].fr:
+                if not i[0] in self.visible:
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.contigDict[i[0]].xpos = startx - 10 - self.contigDict[i[0]].xlength
+                    self.add_contig(i[0])
+                    starty += 35
     
+    def find_contig(self):
+        contig = tkSimpleDialog.askstring('Find Contig', 'Contig name')
+        if contig != None:
+            self.goto(contig)
+
+    def goto(self, contig):
+        try:
+            x = self.canvas.coords('c' + contig)
+            self.canvas.xview_moveto(max([0, x[0] - 200]) / self.currxscroll)
+            self.canvas.yview_moveto(max([0, x[1] - 200]) / self.curryscroll)
+        except:
+            pass
 
     def zoominmenu(self):
         self.canvas.scale(ALL, 0, 0, 1.1, 1.1)
-        self.currxscroll = self.currxscroll * 1.1
-        self.curryscroll = self.curryscroll * 1.1
+        self.currxscroll *= 1.1
+        self.curryscroll *= 1.1
+        self.contigheight *= 1.1
         self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
-        self.fontsize = self.fontsize * 1.1
+        self.fontsize *= 1.1
         self.customFont.configure(size=int(round(self.fontsize)))
 
 
@@ -470,18 +639,20 @@ class App:
             self.canvas.scale(ALL, 0, 0, 0.909090909, 0.909090909)
             self.currxscroll *= 0.909090909
             self.curryscroll *= 0.909090909
+            self.contigheight *= 0.909090909
             self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
             self.fontsize *= 0.909090909
             self.customFont.configure(size=int(round(self.fontsize)))
 
     def zoomin(self, event):
         self.canvas.scale(ALL, 0, 0, 1.1, 1.1)
-        self.currxscroll = self.currxscroll * 1.1
-        self.curryscroll = self.curryscroll * 1.1
+        self.currxscroll *= 1.1
+        self.curryscroll *= 1.1
+        self.contigheight *= 1.1
         self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
         self.canvas.xview_moveto((self.canvas.canvasx(event.x) * 1.1 - event.x) / self.currxscroll)
         self.canvas.yview_moveto((self.canvas.canvasy(event.y) * 1.1 - event.y) / self.curryscroll)
-        self.fontsize = self.fontsize * 1.1 
+        self.fontsize *= 1.1
         self.customFont.configure(size=int(round(self.fontsize)))
 
     def zoomout(self, event):
@@ -491,11 +662,97 @@ class App:
             self.canvas.scale(ALL, 0, 0, 0.909090909, 0.909090909)
             self.currxscroll *= 0.909090909
             self.curryscroll *= 0.909090909
+            self.contigheight *= 0.909090909
             self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
             self.canvas.xview_moveto((self.canvas.canvasx(event.x) * 0.909090909 - event.x) / self.currxscroll)
             self.canvas.yview_moveto((self.canvas.canvasy(event.y) * 0.909090909 - event.y) / self.curryscroll)
             self.fontsize *= 0.909090909
             self.customFont.configure(size=int(round(self.fontsize)))
+
+    def shrink(self, event=None):
+        if self.newscaledown > 10 * self.scaledown.get():
+            pass
+        else:
+            self.canvas.scale(ALL, 0, 0, 0.909090909, 1)
+            self.currxscroll *= 0.909090909
+            self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
+            self.newscaledown /= 0.909090909
+            textitems = self.canvas.find_withtag('text')
+            for z in textitems:
+                contigtag = self.canvas.gettags(z)[0]
+                if '_dup' in contigtag:
+                    i = contigtag.split('_dup')[0][1:]
+                    dupnum = int(contigtag.split('_dup')[1])
+                else:
+                    i = contigtag[1:]
+                    dupnum = 0
+                if self.contigDict[i].orient[dupnum]:
+                    dir = '+'
+                else:
+                    dir = '-'
+                textcoords = self.canvas.coords(z)
+                textend = self.canvas.bbox(z)[2]
+                contigend = self.canvas.coords('c' + i)[2]
+                if textend >= contigend - 2:
+                    self.canvas.delete(z)
+                    thetext = i + ' ' + dir
+                    text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
+                                                   anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                    textend = self.canvas.bbox(text)[2]
+                    if textend >= contigend - 2:
+                        self.canvas.delete(text)
+                        thetext = i
+                        text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
+                                                       anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                        textend = self.canvas.bbox(text)[2]
+                        if textend >= contigend:
+                            self.canvas.delete(text)
+
+
+    def stretch(self, event=None):
+        if self.newscaledown < 0.1 * self.scaledown.get():
+            pass
+        else:
+            self.canvas.scale(ALL, 0, 0, 1.1, 1)
+            self.currxscroll *= 1.1
+            self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
+            self.newscaledown /= 1.1
+            textitems = self.canvas.find_withtag('contig')
+            self.canvas.delete('text')
+            for z in textitems:
+                contigtag = self.canvas.gettags(z)[0]
+                if '_dup' in contigtag:
+                    i = contigtag.split('_dup')[0][1:]
+                    dupnum = int(contigtag.split('_dup')[1])
+                else:
+                    i = contigtag[1:]
+                    dupnum = 0
+                if self.contigDict[i].orient[dupnum]:
+                    dir = '+'
+                else:
+                    dir = '-'
+                length = self.contigDict[i].strlen
+                textcoords = (self.canvas.coords(z)[0] + 2, (self.canvas.coords(z)[1] + self.canvas.coords(z)[3]) /2)
+                contigend = self.canvas.coords('c' + i)[2]
+                thetext = i + ' ' + dir + ' ' + length
+                text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
+                                                anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                textend = self.canvas.bbox(text)[2]
+                if textend >= contigend - 2:
+                    self.canvas.delete(text)
+                    thetext = i + ' ' + dir
+                    text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
+                                                   anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                    textend = self.canvas.bbox(text)[2]
+                    if textend >= contigend - 2:
+                        self.canvas.delete(text)
+                        thetext = i
+                        text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
+                                                       anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                        textend = self.canvas.bbox(text)[2]
+                        if textend >= contigend - 2:
+                            self.canvas.delete(text)
+
 
     def zoomcanvas(self, event):
         pass
@@ -552,10 +809,12 @@ class App:
     def clear_all(self):
         self.canvas.delete(ALL)
         self.hitlist = []
+        self.edgelist = []
         self.contigDict = {}
         self.visible = set()
         self.currxscroll = self.originalxscroll
         self.curryscroll = self.originalyscroll
+        self.contigheight = 25
 
     def load_assembly(self):
         filename = tkFileDialog.askopenfilename()
@@ -681,7 +940,7 @@ class App:
         filename = tkFileDialog.askopenfilename(parent=self.blast_options)
         if filename == '':
             return
-        self.selfcompfile.set(filename)
+        self.selfcomparefile.set(filename)
 
     def loadblast(self):
         filename = tkFileDialog.askopenfilename(parent=self.blast_options)
@@ -712,6 +971,13 @@ class App:
         if filename == '':
             root.quit()
         self.workingDir.set(filename)
+
+    def loadoutfile(self):
+        filename = tkFileDialog.asksaveasfilename(parent=self.write_fasta)
+        if filename == '':
+            return
+        else:
+            self.outfile.set(filename)
 
     def create_edges(self):
         try:
@@ -1813,8 +2079,6 @@ class App:
                     self.hitlist.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
         self.update_console('Comparison created.')
 
-    def findPaths(self):
-        pass
 
     def writeWorkCont(self):
         contout = open(self.workingDir.get() + '/contigs.fa', 'w')
@@ -1823,16 +2087,6 @@ class App:
             for j in range(0, len(self.contigDict[i].forseq), 60):
                 contout.write(self.contigDict[i].forseq[j:j+60] + '\n')
         contout.close()
-
-    def writeFasta(self):
-        pass
-
-
-    def shorten_contigs(self):
-        pass
-
-    def stretch_contigs(self):
-        pass
 
     def self_compare(self):
         try:
@@ -1845,7 +2099,7 @@ class App:
         self.blast_options.title('Self comparison')
         self.reffilelabel = Label(self.frame2, text='Comparison file')
         self.reffilelabel.grid(column=0, row=1)
-        self.reffileentry = Entry(self.frame2, textvariable=self.selfcompfile)
+        self.reffileentry = Entry(self.frame2, textvariable=self.selfcomparefile)
         self.reffileentry.grid(column=1, row=1)
         self.reffilebutton = Button(self.frame2, text='...', command=self.loadselfcomp)
         self.reffilebutton.grid(column=2, row=1)
@@ -1942,34 +2196,57 @@ class App:
 
 
     def draw_self_hits(self):
+        # need to add in hits for duplicates
+        self.canvas.delete('sblast')
+        hitnum = 0
         for i in self.selfhit:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
             if query in self.visible and subject in self.visible:
-                print 'ding'
-                if rstart < rstop:
+                hitnum += 1
+                if rstart < rstop and self.contigDict[query].orient[0] == self.contigDict[subject].orient[0]:
                     colour = '#F85931'
-                else:
+                elif rstart < rstop:
                     colour = '#EDB92E'
+                elif rstop < rstart and self.contigDict[query].orient[0] == self.contigDict[subject].orient[0]:
+                    colour = '#EDB92E'
+                else:
+                    colour = '#F85931'
                 qcoords = self.canvas.coords('c' + query)
                 rcoords = self.canvas.coords('c' + subject)
-                print qcoords
-                print rcoords
-                self.canvas.create_rectangle(qcoords[0] + qstart / self.contigDict[query].scaledown, qcoords[1],
-                                             qcoords[0] + qstop / self.contigDict[query].scaledown, qcoords[3],\
-                                              fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h'))
-                self.canvas.create_rectangle(rcoords[0] + rstart / self.contigDict[subject].scaledown, rcoords[1],
-                                             rcoords[0] + rstop / self.contigDict[subject].scaledown, rcoords[3],\
-                                              fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h'))
-                startx = ((qcoords[0] + qstart / self.contigDict[query].scaledown) + (qcoords[0] + qstop / self.contigDict[query].scaledown)) / 2
-                starty = qcoords[1] + self.contigheight / 2
-                endx = ((rcoords[0] + rstart / self.contigDict[subject].scaledown) + (rcoords[0] + rstop / self.contigDict[subject].scaledown)) / 2
-                endy = rcoords[1] + self.contigheight / 2
-                self.canvas.create_line(startx, starty, (startx + endx) / 2, abs(startx - endx) /4 + (starty + endy) / 2, endx, endy,\
-                                         smooth=True, width=3, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                if self.contigDict[query].orient[0]:
+                    self.canvas.create_rectangle(qcoords[0] + qstart / self.contigDict[query].scaledown, qcoords[1],
+                                                 qcoords[0] + qstop / self.contigDict[query].scaledown, qcoords[3],
+                                                  fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
+                    startx1 = qcoords[0] + qstart / self.contigDict[query].scaledown
+                    startx2 = qcoords[0] + qstop / self.contigDict[query].scaledown
+                else:
+                    self.canvas.create_rectangle(qcoords[2] - qstart / self.contigDict[query].scaledown, qcoords[1],
+                                                 qcoords[2] - qstop / self.contigDict[query].scaledown, qcoords[3],
+                                                  fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
+
+                    startx1 = qcoords[2] - qstart / self.contigDict[query].scaledown
+                    startx2 = qcoords[2] - qstop / self.contigDict[query].scaledown
+                if self.contigDict[subject].orient[0]:
+                    self.canvas.create_rectangle(rcoords[0] + rstart / self.contigDict[subject].scaledown, rcoords[1],
+                                                 rcoords[0] + rstop / self.contigDict[subject].scaledown, rcoords[3],
+                                                  fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
+                    endx1 = rcoords[0] + rstart / self.contigDict[subject].scaledown
+                    endx2 = rcoords[0] + rstop / self.contigDict[subject].scaledown
+                else:
+                    self.canvas.create_rectangle(rcoords[2] - rstart / self.contigDict[subject].scaledown, rcoords[1],
+                                                 rcoords[2] - rstop / self.contigDict[subject].scaledown, rcoords[3],
+                                                  fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
+                    endx1 = rcoords[2] - rstart / self.contigDict[subject].scaledown
+                    endx2 = rcoords[2] - rstop / self.contigDict[subject].scaledown
+                starty = qcoords[1] + self.contigheight
+                endy = rcoords[1] + self.contigheight
+                self.canvas.create_line(startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,\
+                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                self.canvas.create_line(startx2, starty, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2, endx2, endy,\
+                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
         self.canvas.tag_raise('arc')
         self.canvas.tag_raise('text')
         self.blast_options.destroy()
-
 
     def view_options(self):
         try:
@@ -1982,7 +2259,7 @@ class App:
         self.view_options.title('View contig graph')
         self.viewlabel = Label(self.frame3, text='Contigs to view:')
         self.viewlabel.grid(column=0, row=0)
-        self.viewentry = OptionMenu(self.frame3, self.view, 'All', 'BLAST', 'Coverage', 'BLAST and Coverage', 'Blast or Coverage', 'List')
+        self.viewentry = OptionMenu(self.frame3, self.view, 'All', 'BLAST', 'List')#, 'Coverage', 'BLAST and Coverage', 'Blast or Coverage')
         self.viewentry.grid(column=1, row=0, columnspan=2, sticky=EW)
         self.viewlistlabel = Label(self.frame3, text='List of contigs:')
         self.viewlistlabel.grid(column=0, row=1)
@@ -2010,7 +2287,9 @@ class App:
 
     def ok_view(self):
         self.canvas.delete(ALL)
+        self.newscaledown = self.scaledown.get()
         self.visible = set()
+        self.contigheight = 25
         self.currxscroll = self.originalxscroll
         self.curryscroll = self.originalyscroll
         self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
@@ -2020,8 +2299,8 @@ class App:
                 self.contigDict[i].scaledown = self.scaledown.get()
         if self.shorten.get() == 'Log':
             for i in self.contigDict:
-                self.contigDict[i].xlength = (2 ** math.log10(self.contigDict[i].length)) * 25
-                self.contigDict[i].scaledown = self.contigDict[i].length * 1.0 / ((2 ** math.log10(self.contigDict[i].length)) * 25)
+                self.contigDict[i].xlength = (2 ** math.log10(self.contigDict[i].length)) * (self.scaledown.get() / 4)
+                self.contigDict[i].scaledown = self.contigDict[i].length * 1.0 / ((2 ** math.log10(self.contigDict[i].length)) * (self.scaledown.get() / 4))
         if self.shorten.get() == 'Max':
             for i in self.contigDict:
                 self.contigDict[i].xlength = min([self.contigDict[i].length / self.scaledown.get(), 100])
@@ -2042,13 +2321,18 @@ class App:
             self.visible = self.getContigsWithHit()
             self.orderContigsBlast()
             self.drawContigs()
-            self.drawRefHits()
             self.drawEdges()
         elif self.view.get() == 'All':
             self.visible = set(self.contigDict)
             self.orderContigsAll()
             self.drawContigs()
             self.drawEdges()
+        elif self.view.get() == 'List':
+            self.orderContigsList()
+            self.drawContigs()
+            self.drawEdges()
+        if self.viewref.get() and not self.hitlist is None:
+            self.drawRefHits()
         self.canvas.move(ALL, -self.leftmost + 50, 0)
         self.currxscroll = self.rightmost - self.leftmost + 200
         self.curryscroll = 1000
@@ -2109,7 +2393,7 @@ class App:
             self.canvas.create_rectangle(self.contigDict[i].xpos, self.contigDict[i].ypos,
                                          self.contigDict[i].xpos + self.contigDict[i].xlength, self.contigDict[i].ypos + self.contigheight,\
                                           fill="#009989", tags=('c' + i, 'contig', 'map'))
-            if self.contigDict[i].orient:
+            if self.contigDict[i].orient[0]:
                 dir = '+'
             else:
                 dir = '-'
@@ -2128,6 +2412,17 @@ class App:
                                                     fill='white', font=self.customFont, anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                     if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
                         self.canvas.delete(text)
+
+    def orderContigsList(self):
+        listfile = open(self.viewlist.get())
+        currx = 10
+        for line in listfile:
+            name = line.rstrip()
+            self.visible.add(name)
+            self.contigDict[name].xpos = currx
+            self.contigDict[name].ypos = self.contigline
+            curr += self.contigDict[name].xlength + 10
+        listfile.close()
 
     def orderContigsAll(self):
         todo = set(self.contigDict)
@@ -2228,11 +2523,306 @@ class App:
             self.contigDict[i[1]].xpos = currxpos
             self.contigDict[i[1]].ypos = self.contigline
             currxpos += self.contigDict[i[1]].xlength + 10
-    
-        
 
 
-    
+    def findPaths(self):
+        try:
+            self.find_paths.destroy()
+        except:
+            pass
+        self.find_paths = Toplevel()
+        self.frame4 = Frame(self.find_paths)
+        self.find_paths.geometry('+20+30')
+        self.find_paths.title('Find paths between contigs')
+        self.maxbplabel = Label(self.frame4, text='Max. bp')
+        self.maxbplabel.grid(column=0, row=1)
+        self.maxbpentry = Entry(self.frame4, textvariable=self.maxbp)
+        self.maxbpentry.grid(column=1, row=1)
+        self.maxnodelabel = Label(self.frame4, text='Max. node')
+        self.maxnodelabel.grid(column=0, row=2)
+        self.maxnodeentry = Entry(self.frame4, textvariable=self.maxnode)
+        self.maxnodeentry.grid(column=1, row=2)
+        self.maxpathlabel = Label(self.frame4, text='Max. paths')
+        self.maxpathlabel.grid(column=0, row=3)
+        self.maxpathentry = Entry(self.frame4, textvariable=self.maxpath)
+        self.maxpathentry.grid(column=1, row=3)
+        self.onlyshortlabel = Label(self.frame4, text='Only find shortest path')
+        self.onlyshortlabel.grid(column=0, row=4)
+        self.onlyshortentry = Checkbutton(self.frame4, variable=self.onlyshort)
+        self.onlyshortentry.grid(column=1, row=4)
+        self.okedges = Button(self.frame4, text='Ok', command=self.ok_paths)
+        self.okedges.grid(row=5, column=0, sticky=E)
+        self.frame4.grid(row=0, column=0)
+
+    def ok_paths(self):
+        try:
+            if self.thethread.is_alive():
+                tkMessageBox.showerror('Already running process',
+                                       'Please wait until current tasks have finished before running another process.')
+                return
+        except:
+            pass
+        self.find_paths.destroy()
+        if self.namelist.size() == 0:
+            tkMessageBox.showerror('Error', 'Need to select contigs before searching for paths.')
+            return
+        self.queue = Queue.Queue()
+        self.thethread = threading.Thread(target=self.findpathsthread)
+        self.thethread.start()
+        self.update_path()
+
+    def update_path(self):
+        while self.queue.qsize():
+            try:
+                text = self.queue.get(0)
+                self.update_console(text)
+                if text != 'Path search complete.':
+                    root.after(1000, self.update_path)
+                else:
+                    self.path_add()
+                return
+            except Queue.Empty:
+                pass
+        if not self.thethread.is_alive():
+            self.update_console('Path search failed, please check console output.')
+            return
+        elif not self.queue.qsize():
+            root.after(1000, self.update_path)
+            return
+
+    def path_add(self):
+        for i in self.contigstoadd:
+            self.add_contig(i)
+
+
+    def findpathsthread(self):
+        maxbp = self.maxbp.get()
+        maxnode = self.maxnode.get()
+        maxpath = self.maxpath.get()
+        phantomlist = []
+        phantomset = set()
+        for i in phantomlist:
+            phantomset.add(i[0])
+        candContigs = set()
+        for i in self.namelist.get(0, END):
+            candContigs.add(i)
+        outpaths = []
+        for i in candContigs:
+            todo = []
+            for j in self.contigDict[i].to:
+                if not j[1]:
+                    if type(j[2]) == int:
+                        overlap = - j[2]
+                    else:
+                        overlap = len(j[2])
+                    todo.append((((i, True), (j[0], False)), self.contigDict[j[0]].length + overlap))
+                else:
+                    if type(j[2]) == int:
+                        overlap = - j[2]
+                    else:
+                        overlap = len(j[2])
+                    todo.append((((i, True), (j[0], True)), self.contigDict[j[0]].length + overlap))
+            for j in self.contigDict[i].fr:
+                if not j[1]:
+                    if type(j[2]) == int:
+                        overlap = - j[2]
+                    else:
+                        overlap = len(j[2])
+                    todo.append((((i, False), (j[0], False)), self.contigDict[j[0]].length + overlap))
+                else:
+                    if type(j[2]) == int:
+                        overlap = - j[2]
+                    else:
+                        overlap = len(j[2])
+                    todo.append((((i, False), (j[0], True)), self.contigDict[j[0]].length + overlap))
+            while todo != [] and len(todo) < maxpath:
+                currPath = todo.pop(0)
+                notphant = True
+                if currPath[0][-1][0] in phantomset:
+                    phantcount = 0
+                    for j in currPath[0][:-1]:
+                        if j[0] in phantomset:
+                            phantcount += 1
+                            if phantcount == 4:
+                                notphant = False
+                                break
+                if currPath[0][-1][0] in candContigs:
+                    outpaths.append(currPath)
+                elif len(currPath[0]) <= maxnode and currPath[1] <= maxbp and notphant:
+                    if currPath[0][-1][1]:
+                        for j in self.contigDict[currPath[0][-1][0]].to:
+                            if not j[1]:
+                                if type(j[2]) == int:
+                                    overlap = - j[2]
+                                else:
+                                    overlap = len(j[2])
+                                todo.append((currPath[0] + ((j[0], False),), currPath[1] + self.contigDict[j[0]].length + overlap))
+                            else:
+                                if type(j[2]) == int:
+                                    overlap = - j[2]
+                                else:
+                                    overlap = len(j[2])
+                                todo.append((currPath[0] + ((j[0], True),), currPath[1] + self.contigDict[j[0]].length + overlap))
+                    else:
+                        for j in self.contigDict[currPath[0][-1][0]].fr:
+                            if not j[1]:
+                                if type(j[2]) == int:
+                                    overlap = - j[2]
+                                else:
+                                    overlap = len(j[2])
+                                todo.append((currPath[0] + ((j[0], False),), currPath[1] + self.contigDict[j[0]].length + overlap))
+                            else:
+                                if type(j[2]) == int:
+                                    overlap = - j[2]
+                                else:
+                                    overlap = len(j[2])
+                                todo.append((currPath[0] + ((j[0], True),), currPath[1] + self.contigDict[j[0]].length + overlap))
+        if len(outpaths) == 0:
+            self.queue.put('No paths found.')
+            self.queue.put('Path search complete.')
+        paths = []
+        pathlengths = []
+        for i in outpaths:
+            paths.append(i[0])
+            pathlengths.append(i[1] - self.contigDict[i[0][-1][0]].length)
+        if self.onlyshort.get():
+            newpaths = {}
+            for i in range(len(paths)):
+                pathstart = paths[i][0]
+                pathend = paths[i][-1]
+                pathlength = pathlengths[i]
+                if (pathstart, pathend) in newpaths:
+                    if pathlength < newpaths[(pathstart, pathend)][0]:
+                        newpaths[(pathstart, pathend)] = (pathlength, paths[i])
+                elif ((pathend[0], not pathend[1]), (pathstart[0], not pathstart[1])) in newpaths:
+                    if pathlength < newpaths[((pathend[0], not pathend[1]), (pathstart[0], not pathstart[1]))][0]:
+                        newpaths[((pathend[0], not pathend[1]), (pathstart[0], not pathstart[1]))] = (pathlength, paths[i])
+                else:
+                    newpaths[(pathstart, pathend)] = (pathlength, paths[i])
+            outpaths = []
+            for i in newpaths:
+                outpaths.append((newpaths[i][1], newpaths[i][0]))
+        self.contigstoadd = []
+        for i in outpaths:
+            paths, pathlength = i
+            firstcoords = self.canvas.coords('c' + paths[0][0])
+            secondcoords = self.canvas.coords('c' + paths[-1][0])
+            ystart = min([firstcoords[3], secondcoords[3]]) + 35
+            if secondcoords[0] < firstcoords[0]:
+                paths = list(paths)
+                paths.reverse()
+                xstart = (secondcoords[2] + firstcoords[0]) /2 - (pathlength / self.newscaledown + 10 * (len(paths) -3)) /2
+            else:
+                xstart = (firstcoords[2] + secondcoords[0]) /2 - (pathlength / self.newscaledown + 10 * (len(paths) -3)) /2
+            for j in paths[1:-1]:
+                if not j[0] in self.visible and not j[0] in self.contigstoadd:
+                    self.contigDict[j[0]].xpos = xstart
+                    self.contigDict[j[0]].ypos = ystart
+                    self.contigDict[j[0]].xlength = self.contigDict[j[0]].length / self.newscaledown
+                    self.contigstoadd.append(j[0])
+                xstart += self.contigDict[j[0]].length / self.newscaledown
+        self.queue.put(str(len(outpaths)) + ' paths found.')
+        self.queue.put('Path search complete.')
+
+    def writeFasta(self):
+        try:
+            self.write_fasta.destroy()
+        except:
+            pass
+        self.write_fasta = Toplevel()
+        self.frame5 = Frame(self.write_fasta)
+        self.write_fasta.geometry('+20+30')
+        self.write_fasta.title('Write FASTA')
+        self.outfilelabel = Label(self.frame5, text='Write to file')
+        self.outfilelabel.grid(column=0, row=1)
+        self.outfileentry = Entry(self.frame5, textvariable=self.outfile)
+        self.outfileentry.grid(column=1, row=1)
+        self.outfilebutton = Button(self.frame5, text='...', command=self.loadoutfile)
+        self.outfilebutton.grid(column=2, row=1)
+        self.bufferlabel = Label(self.frame5, text='Buffer sequence')
+        self.bufferlabel.grid(column=0, row=2)
+        self.bufferentry = Entry(self.frame5, textvariable=self.buffer)
+        self.bufferentry.grid(column=1, row=2, columnspan=2, sticky=EW)
+        self.okedges = Button(self.frame5, text='Ok', command=self.ok_fasta)
+        self.okedges.grid(row=3, column=0, sticky=E)
+        self.frame5.grid(padx=20, pady=20)
+
+
+    def ok_fasta(self):
+        if self.outfile.get() == '':
+            tkMessageBox.showerror('Error', 'Please specify file to write to.')
+            return
+        self.write_fasta.destroy()
+        if self.namelist.size() == 0:
+            tkMessageBox.showerror('Error', 'Need to select contigs before writing fasta.')
+            return
+        out = open(self.outfile.get(), 'w')
+        name = self.namelist.get(0)
+        if self.dirlist.get(0) == '+':
+            lastdir = True
+            seq = self.contigDict[name].forseq
+        else:
+            lastdir = False
+            seq = self.contigDict[name].revseq
+        for i in range(1, self.namelist.size()):
+            lastname = name
+            name = self.namelist.get(i)
+            overlap = self.buffer.get()
+            dir = self.dirlist.get(i) == '+'
+            if dir:
+                if lastdir:
+                    for j in self.contigDict[lastname].to:
+                        if j[0] == name and j[1] == dir:
+                            overlap = j[2]
+                else:
+                    for j in self.contigDict[lastname].fr:
+                        if j[0] == name and j[1] == dir:
+                            overlap = j[2]
+                if type(overlap) == int:
+                    seq += self.contigDict[name].forseq[overlap:]
+                else:
+                    seq += overlap + self.contigDict[name].forseq
+                lastdir = True
+            else:
+                if lastdir:
+                    for j in self.contigDict[lastname].to:
+                        if j[0] == name and j[1] == dir:
+                            overlap = j[2]
+                else:
+                    for j in self.contigDict[lastname].fr:
+                        if j[0] == name and j[1] == dir:
+                            overlap = j[2]
+                if type(overlap) == int:
+                    seq += self.contigDict[name].revseq[overlap:]
+                else:
+                    seq += overlap + self.contigDict[name].revseq
+                lastdir = False
+        out.write('>contiguity_scaff\n')
+        for j in range(0, len(seq), 60):
+            out.write(seq[j:j+60] + '\n')
+        out.close()
+        self.update_console('File written.')
+
+    def writeMultiFasta(self):
+        if self.namelist.size() == 0:
+            tkMessageBox.showerror('Error', 'Need to select contigs before writing fasta.')
+            return
+        outfile = tkFileDialog.asksaveasfilename()
+        if outfile == '':
+            return
+        out = open(outfile, 'w')
+        for i in range(self.namelist.size()):
+            name = self.namelist.get(i)
+            out.write('>' + name + '\n')
+            if self.dirlist.get(i) == '+':
+                seq = self.contigDict[name].forseq
+            else:
+                seq = self.contigDict[name].revseq
+            for j in range(0, len(seq), 60):
+                out.write(seq[j:j+60] + '\n')
+        out.close()
+        self.update_console('File written.')
+
         
 root = Tk()
 root.title('Contiguity')
