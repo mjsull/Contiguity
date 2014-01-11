@@ -2237,9 +2237,9 @@ class App:
                 starty = qcoords[1] + self.contigheight
                 endy = rcoords[1] + self.contigheight
                 self.canvas.create_line(startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,\
-                                         smooth=True, width=2, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
                 self.canvas.create_line(startx2, starty, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2, endx2, endy,\
-                                         smooth=True, width=2, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
         self.canvas.tag_raise('arc')
         self.canvas.tag_raise('text')
         self.blast_options.destroy()
