@@ -61,7 +61,7 @@ class App:
         self.filemenu.add_command(label="Exit", command=root.quit)
         self.menubar.add_cascade(label="File", menu=self.filemenu)
         self.viewmenu = Menu(self.menubar, tearoff=0)
-        self.viewmenu.add_command(label="View graph", command=self.view_options)
+        self.viewmenu.add_command(label="View assembly", command=self.view_options)
         self.viewmenu.add_command(label="Self comparison", command=self.self_compare)
         self.viewmenu.add_command(label="Add contig", command=self.add_contig_dialogue)
         self.viewmenu.add_separator()
@@ -191,7 +191,7 @@ class App:
         self.minlength = IntVar(value=100)
         self.minlengthblast = IntVar(value=100)
         self.intra = IntVar(value=0)
-        self.minlengthratio = DoubleVar(value=0.1)
+        self.minlengthratio = DoubleVar(value=0.0)
         self.minident = DoubleVar(value=95.0)
         self.minbitscore = DoubleVar(value=0)
         self.maxtrim = IntVar(0)
@@ -235,6 +235,7 @@ class App:
         self.rightmost = None
         self.selected = []
         self.newscaledown = self.scaledown.get()
+        self.reforder = None
 
     def addtolist(self, event):
         thetag = self.canvas.gettags(CURRENT)[0]
@@ -815,6 +816,8 @@ class App:
         self.currxscroll = self.originalxscroll
         self.curryscroll = self.originalyscroll
         self.contigheight = 25
+        self.fontsize = 12
+        self.customFont.configure(size=12)
 
     def load_assembly(self):
         filename = tkFileDialog.askopenfilename()
@@ -2216,36 +2219,27 @@ class App:
                 qcoords = self.canvas.coords('c' + query)
                 rcoords = self.canvas.coords('c' + subject)
                 if self.contigDict[query].orient[0]:
-                    self.canvas.create_rectangle(qcoords[0] + qstart / self.contigDict[query].scaledown, qcoords[1],
-                                                 qcoords[0] + qstop / self.contigDict[query].scaledown, qcoords[3],
-                                                  fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
-                    startx1 = qcoords[0] + qstart / self.contigDict[query].scaledown
-                    startx2 = qcoords[0] + qstop / self.contigDict[query].scaledown
+                    startx1 = qcoords[0] + qstart * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
+                    startx2 = qcoords[0] + qstop * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
                 else:
-                    self.canvas.create_rectangle(qcoords[2] - qstart / self.contigDict[query].scaledown, qcoords[1],
-                                                 qcoords[2] - qstop / self.contigDict[query].scaledown, qcoords[3],
-                                                  fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
-
-                    startx1 = qcoords[2] - qstart / self.contigDict[query].scaledown
-                    startx2 = qcoords[2] - qstop / self.contigDict[query].scaledown
+                    startx1 = qcoords[2] - qstart * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
+                    startx2 = qcoords[2] - qstop * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
+                self.canvas.create_rectangle(startx1, qcoords[1], startx2, qcoords[3],
+                                              fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
                 if self.contigDict[subject].orient[0]:
-                    self.canvas.create_rectangle(rcoords[0] + rstart / self.contigDict[subject].scaledown, rcoords[1],
-                                                 rcoords[0] + rstop / self.contigDict[subject].scaledown, rcoords[3],
-                                                  fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
-                    endx1 = rcoords[0] + rstart / self.contigDict[subject].scaledown
-                    endx2 = rcoords[0] + rstop / self.contigDict[subject].scaledown
+                    endx1 = rcoords[0] + rstart * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
+                    endx2 = rcoords[0] + rstop * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
                 else:
-                    self.canvas.create_rectangle(rcoords[2] - rstart / self.contigDict[subject].scaledown, rcoords[1],
-                                                 rcoords[2] - rstop / self.contigDict[subject].scaledown, rcoords[3],
-                                                  fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
-                    endx1 = rcoords[2] - rstart / self.contigDict[subject].scaledown
-                    endx2 = rcoords[2] - rstop / self.contigDict[subject].scaledown
+                    endx1 = rcoords[2] - rstart * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
+                    endx2 = rcoords[2] - rstop * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
+                self.canvas.create_rectangle(endx1, rcoords[1], endx2, rcoords[3],
+                                              fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
                 starty = qcoords[1] + self.contigheight
                 endy = rcoords[1] + self.contigheight
                 self.canvas.create_line(startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,\
-                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                                         smooth=True, width=2, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
                 self.canvas.create_line(startx2, starty, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2, endx2, endy,\
-                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                                         smooth=True, width=2, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
         self.canvas.tag_raise('arc')
         self.canvas.tag_raise('text')
         self.blast_options.destroy()
@@ -2294,6 +2288,8 @@ class App:
         self.contigheight = 25
         self.currxscroll = self.originalxscroll
         self.curryscroll = self.originalyscroll
+        self.fontsize = 12
+        self.customFont.configure(size=12)
         self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
         if self.shorten.get() == 'No':
             for i in self.contigDict:
@@ -2301,8 +2297,8 @@ class App:
                 self.contigDict[i].scaledown = self.scaledown.get()
         if self.shorten.get() == 'Log':
             for i in self.contigDict:
-                self.contigDict[i].xlength = (2 ** math.log10(self.contigDict[i].length)) * (self.scaledown.get() / 4)
-                self.contigDict[i].scaledown = self.contigDict[i].length * 1.0 / ((2 ** math.log10(self.contigDict[i].length)) * (self.scaledown.get() / 4))
+                self.contigDict[i].xlength = max([math.log10(self.contigDict[i].length / self.scaledown.get()), 1]) * self.scaledown.get()
+                self.contigDict[i].scaledown = self.contigDict[i].length * 1.0 / (max([math.log10(self.contigDict[i].length / self.scaledown.get()), 1]) * self.scaledown.get())
         if self.shorten.get() == 'Max':
             for i in self.contigDict:
                 self.contigDict[i].xlength = min([self.contigDict[i].length / self.scaledown.get(), 100])
@@ -2333,7 +2329,7 @@ class App:
             self.orderContigsList()
             self.drawContigs()
             self.drawEdges()
-        if self.viewref.get() and not self.hitlist is None:
+        if self.viewref.get() and not self.hitlist is None and not self.reforder is None:
             self.drawRefHits()
         self.canvas.move(ALL, -self.leftmost + 50, 0)
         self.currxscroll = self.rightmost - self.leftmost + 200
