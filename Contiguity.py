@@ -47,7 +47,21 @@ class contig:
         self.startanchor = 0
         self.stopanchor = 0
 
+def which(program):
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return True
+    return False
 
 class App:
     def __init__(self, master):
@@ -58,7 +72,10 @@ class App:
         self.filemenu.add_separator()
         self.filemenu.add_command(label="Load assembly", command=self.load_assembly)
         self.filemenu.add_separator()
-        self.filemenu.add_command(label="Exit", command=root.quit)
+        self.filemenu.add_command(label="Change working directory", command=self.loadwork)
+        self.filemenu.add_command(label="Cancel running process", command=self.cancelprocess)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label="Exit", command=self.quit)
         self.menubar.add_cascade(label="File", menu=self.filemenu)
         self.viewmenu = Menu(self.menubar, tearoff=0)
         self.viewmenu.add_command(label="View assembly", command=self.view_options)
@@ -178,16 +195,18 @@ class App:
         self.selfcomparefile = StringVar(value='')
         self.outfile = StringVar(value='')
         self.buffer = StringVar(value='nnnnnnnnnn')
-        self.reffile = StringVar(value='/home/mitch/plas.fa')
-        self.blastfile = StringVar(value='/home/mitch/temp/query_tempdb.out')
-        self.contigfile = StringVar(value='/home/mitch/curr_proj/coif/UTI89-2_51_Contigs.fasta')
+        self.reffile = StringVar(value='')
+        self.blastfile = StringVar(value='')
+        self.contigfile = StringVar(value='')
         self.csag = StringVar(value='')
-        self.readfile = StringVar(value='/home/mitch/curr_proj/coif/UTI89-2_trimmed_ill.fastq')
-        self.workingDir = StringVar(value='temp')
-        try:
+        self.readfile = StringVar(value='')
+        self.workingDir = StringVar(value='.contiguity_wd')
+        if os.path.exists(self.workingDir.get()):
+            if not os.path.isdir(self.workingDir.get()):
+                tkMessageBox.showerror('Error', 'File not folder selected.')
+                sys.exit()
+        else:
             os.makedirs(self.workingDir.get())
-        except:
-            pass
         self.minlength = IntVar(value=100)
         self.minlengthblast = IntVar(value=100)
         self.intra = IntVar(value=0)
@@ -236,6 +255,30 @@ class App:
         self.selected = []
         self.newscaledown = self.scaledown.get()
         self.reforder = None
+        self.abortqueue = Queue.Queue()
+        self.abortqueue.put(False)
+        self.abort = False
+
+    def cancelprocess(self):
+        self.abort = True
+        self.abortqueue.put(True)
+
+    def quit(self):
+        self.cancelprocess()
+        self.update_console('Terminating threads.')
+        self.quitpoll()
+
+
+    def quitpoll(self):
+        self.dot_console()
+        try:
+            if self.thethread.is_alive():
+                root.after(1000, self.quitpoll)
+            else:
+                root.quit()
+        except:
+            root.quit()
+
 
     def addtolist(self, event):
         thetag = self.canvas.gettags(CURRENT)[0]
@@ -657,7 +700,7 @@ class App:
         self.customFont.configure(size=int(round(self.fontsize)))
 
     def zoomout(self, event):
-        if self.fontsize < 1:
+        if self.fontsize < 1 or self.currxscroll *0.909090909 < self.canvas.winfo_width():
             pass
         else:
             self.canvas.scale(ALL, 0, 0, 0.909090909, 0.909090909)
@@ -805,7 +848,20 @@ class App:
                 self.canvas.coords(i, x[0], x[1], x[2], x[3], x[4] + diffx, x[5] + diffy, x[6] + diffx, x[7] + diffy)
 
     def update_console(self, text):
-        self.consoletext.set(self.consoletext.get() + '\n' + text)
+        if self.consoletext.get() == '':
+            self.consoletext.set(text)
+        else:
+            self.consoletext.set(self.consoletext.get().strip('.') + '.\n' + text)
+
+    def update_console_line(self, text):
+        self.consoletext.set(self.consoletext.get() + text)
+
+    def dot_console(self):
+        text = self.consoletext.get()
+        if text[-3:] == '...':
+            self.consoletext.set(text[:-2])
+        else:
+            self.consoletext.set(text + '.')
 
     def clear_all(self):
         self.canvas.delete(ALL)
@@ -964,16 +1020,20 @@ class App:
         self.viewlist.set(filename)
 
     def loadread(self):
-        filename = tkFileDialog.askopenfilename(parent=self.self.create_edges_top)
+        filename = tkFileDialog.askopenfilename(parent=self.create_edges_top)
         if filename == '':
             return
         self.readfile.set(filename)
 
     def loadwork(self):
-        filename = tkFileDialog.askdirectory(parent=self.load_files)
+        filename = tkFileDialog.askdirectory(title='Please select a working directory', initialdir=self.workingDir.get())
         if filename == '':
-            root.quit()
+            sys.exit()
         self.workingDir.set(filename)
+        try:
+            os.makedirs(filename)
+        except:
+            pass
 
     def loadoutfile(self):
         filename = tkFileDialog.asksaveasfilename(parent=self.write_fasta)
@@ -981,6 +1041,16 @@ class App:
             return
         else:
             self.outfile.set(filename)
+
+    def aborttime(self):
+        try:
+            abort = self.abortqueue.get(0)
+            if abort:
+                return True
+            else:
+                return False
+        except Queue.Empty:
+            return False
 
     def create_edges(self):
         try:
@@ -1092,7 +1162,7 @@ class App:
     def ok_edges(self):
         if (not os.path.exists(self.readfile.get()) and (self.getdb.get() == 1 or self.getPaired.get() == 1 or self.getLong.get() == 1))\
           or not os.path.exists(self.contigfile.get()):
-            tkMessageBox.showerror('File missing', 'Please add a contig and read file.')
+            tkMessageBox.showerror('File missing', 'Please include a contig and read file.', parent=self.create_edges_top)
             return
         try:
             if self.thethread.is_alive():
@@ -1107,9 +1177,12 @@ class App:
         self.queue = Queue.Queue()
         self.thethread = threading.Thread(target=self.edge_thread)
         self.thethread.start()
+        self.abort = False
+        self.update_console('Finding edges now.')
         self.update_edges()
 
     def update_edges(self):
+        self.dot_console()
         while self.queue.qsize():
             try:
                 text = self.queue.get(0)
@@ -1120,7 +1193,10 @@ class App:
             except Queue.Empty:
                 pass
         if not self.thethread.is_alive():
-            self.update_console('Edge creation failed, please check console output.')
+            if self.abort:
+                self.update_console('Thread stopped.')
+            else:
+                self.update_console('Edge creation failed, please check console output.')
             return
         elif not self.queue.qsize():
             root.after(1000, self.update_edges)
@@ -1131,34 +1207,59 @@ class App:
         self.edgelist = []
         self.contigDict = {}
         self.populateContigDict()
-        self.queue.put('Creating edges now..')
         self.writeWorkCont()
         if self.getOverlap.get() == 1:
+            self.queue.put('Finding overlaps.')
             count = len(self.edgelist)
             self.get_overlap_edges()
             count = len(self.edgelist) - count
             self.queue.put('Overlaps found ' + str(count) + ' edges.')
+        if self.aborttime():
+            return
         if self.getdb.get() == 1:
+            self.queue.put('Finding De Bruijn edges.')
             count = len(self.edgelist)
-            self.get_nmer_freq()
+            abort = self.get_nmer_freq()
+            if self.aborttime() or self.abort:
+                return
             self.read_nmer_freq()
+            if self.aborttime():
+                return
             if self.cutauto == 1:
                 self.getnmercut()
-            self.get_db_edges()
+                if self.aborttime():
+                    return
+            abort = self.get_db_edges()
+            if abort:
+                return
             count = len(self.edgelist) - count
             self.queue.put('De Bruijn found ' + str(count) + ' edges.')
+        if self.aborttime():
+            return
         if self.getPaired.get() == 1:
+            self.queue.put('Finding paired end edges.')
             count = len(self.edgelist)
-            self.get_paired_edge()
+            abort = self.get_paired_edge()
+            if abort:
+                return
             count = len(self.edgelist) - count
             self.queue.put('Paired end found ' + str(count) + ' edges.')
+        if self.aborttime():
+            return
         if self.getLong.get() == 1:
+            self.queue.put('Finding edges with long reads.')
             count = len(self.edgelist)
             self.get_long_edge()
             count = len(self.edgelist) - count
             self.queue.put('Long reads found '+ str(count) + 'edges.')
+        if self.aborttime():
+            return
         self.removeDuplicates()
+        if self.aborttime():
+            return
         self.untangleEdges()
+        if self.aborttime():
+            return
         self.queue.put(str(len(self.edgelist)) + ' edges found.')
         for i in self.edgelist:
             contiga, dira, contigb, dirb, overlap = i
@@ -1408,6 +1509,8 @@ class App:
                 else:
                     ends[nmer] = ((name, False),)
         for i in self.contigDict:
+            if self.aborttime():
+                return True
             forpaths = self.dbpath(self.contigDict[i].forseq[-nmersize:], ends)
             for j in forpaths:
                 nmer = j[-nmersize - 20:]
@@ -1435,6 +1538,7 @@ class App:
                         else:
                             self.edgelist.append((i, False, k[0], False, appendpath))    
         del self.nmerdict
+        return False
 
     def getflag(self, n, count=11):
         return "".join([str((int(n) >> y) & 1) for y in range(count-1, -1, -1)])
@@ -1466,6 +1570,9 @@ class App:
         edgedict = {}
         for line in samfile:
             if not line.startswith('@'):
+                if not self.abortqueue.empty():
+                    if self.aborttime():
+                        return True
                 count += 1
                 query, flag, ref, pos, mapq, cigar = line.split()[:6]
                 theflag = self.getflag(flag)
@@ -1621,6 +1728,7 @@ class App:
                         if gotit:
                             newedges.append((startit[0], startit[1], endit[0], endit[1], overlap))
         self.edgelist = self.edgelist + newedges
+        return False
 
     def get_long_edge(self):
         readfile = open(self.readfile.get())
@@ -1715,8 +1823,10 @@ class App:
         getseq = False
         getfaseq = False
         for line in readfile:
+            if not self.abortqueue.empty():
+                if self.aborttime():
+                    return True
             if line.startswith('@'):
-                header = line[1:].rstrip()
                 getseq = True
             elif line.startswith('>'):
                 if getfaseq:
@@ -1731,7 +1841,6 @@ class App:
                             if set(nmer).issubset(nucl):
                                 self.nmerdict[nmer] = 1
                 getfaseq = True
-                header = line[1:].rstrip()
                 seq = ''
             elif getfaseq:
                 seq += line.rstrip().lower()
@@ -1777,6 +1886,7 @@ class App:
                 out.write(str(i) + '\t0\n')
         out.close()
         self.nmerfile = self.workingDir.get() + '/nmers'
+        return False # thread has not been aborted
 
     def read_nmer_freq(self):
         self.nmerdict = {}
@@ -1816,8 +1926,8 @@ class App:
                         rising = False
             except:
                 pass
-        nmerave = int(mf)/2
-        nmercut = tf
+        self.nmerave.set(int(mf)/2)
+        self.nmercut.set(tf)
 
     def untangleEdges(self):
         edgeDict = {}
@@ -2005,6 +2115,8 @@ class App:
         except:
             pass
         self.blast_options = Toplevel()
+        self.blast_options.grab_set()
+        self.blast_options.wm_attributes("-topmost", 1)
         self.frame2 = Frame(self.blast_options)
         self.blast_options.geometry('+20+30')
         self.blast_options.title('Create comparison')
@@ -2045,10 +2157,64 @@ class App:
         self.frame2.grid(padx=10, pady=10)
 
     def okblast(self):
-        try:
+        if self.reffile.get() == '':
+            tkMessageBox.showerror('File missing', 'Please choose a reference file.', parent=self.blast_options)
+            return
+        if os.path.exists(self.reffile.get()):
+            temp = open(self.reffile.get())
+            if temp.readline()[0] != '>':
+                tkMessageBox.showerror('File not fasta', 'Please choose a valid reference file.', parent=self.blast_options)
+                return
+        else:
+            tkMessageBox.showerror('File doesn\'t exist', 'Please choose a valid reference file.', parent=self.blast_options)
+            return
+        if self.contigDict == {}:
+            tkMessageBox.showerror('Assembly not found', 'Please load a FASTA or CSAG file using load assembly before creating comparison.', parent=self.blast_options)
             self.blast_options.destroy()
+            return
+        if self.blastfile.get() == '':
+            self.blastit = tkMessageBox.askquestion('No blast files.', 'Create BLAST output?')
+        else:
+            tkMessageBox.showerror('No Comparison', 'Please include comparison file.')
+            return
+        self.blast_options.destroy()
+        try:
+            if self.thethread.is_alive():
+                tkMessageBox.showerror('Already running process',
+                                       'Please wait until current tasks have finished before running another process.')
+                return
         except:
             pass
+        self.queue = Queue.Queue()
+        self.thethread = threading.Thread(target=self.create_comp_thread)
+        self.thethread.start()
+        self.abort = False
+        self.update_console('Creating comparison')
+        self.update_create_comp()
+
+
+    def update_create_comp(self):
+        self.dot_console()
+        while self.queue.qsize():
+            try:
+                text = self.queue.get(0)
+                self.update_console(text)
+                if text != 'Comparison created.':
+                    root.after(1000, self.update_create_comp)
+                return
+            except Queue.Empty:
+                pass
+        if not self.thethread.is_alive():
+            if self.abort:
+                self.update_console('Thread stopped.')
+            else:
+                self.update_console('Creating comparison failed, please check console output.')
+            return
+        elif not self.queue.qsize():
+            root.after(1000, self.update_create_comp)
+            return
+
+    def create_comp_thread(self):
         ref = open(self.reffile.get())
         first = True
         self.refDict = {}
@@ -2066,13 +2232,15 @@ class App:
                 seq += line.rstrip()
         self.refDict[name] = seq
         self.reforder.append(name)
-        if self.blastfile.get() == '' and self.contigfile.get() != '' and self.reffile.get() != '':
-            blastit = tkMessageBox.askquestion('No blast files.', 'Create BLAST output?')
-            if blastit == 'yes':
-                subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/tempdb -in ' + self.reffile.get(), stdout=subprocess.PIPE, shell=True).wait()
-                subprocess.Popen('blastn -task blastn -db ' + self.workingDir.get() + '/tempdb -outfmt 6 -query ' + self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/query_tempdb.out', shell=True).wait()
-                self.blastfile.set(self.workingDir.get() + '/query_tempdb.out')
-                self.update_console('BLAST file created.')
+        if self.blastit == 'yes':
+            self.queue.put('Running BLAST.')
+            if not which('blastn') or not which('makeblastdb'):
+                tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST to your path, or perform the comparison yourself.')
+                return
+            subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/tempdb -in ' + self.reffile.get(), stdout=subprocess.PIPE, shell=True).wait()
+            subprocess.Popen('blastn -task blastn -db ' + self.workingDir.get() + '/tempdb -outfmt 6 -query ' + self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/query_tempdb.out', shell=True).wait()
+            self.blastfile.set(self.workingDir.get() + '/query_tempdb.out')
+            self.queue.put('BLAST file created.')
         if self.blastfile.get() != '':
             blastfile = open(self.blastfile.get())
             self.hitlist = []
@@ -2082,7 +2250,7 @@ class App:
                 ident, eval, bitscore = map(float, [ident, eval, bitscore])
                 if ident >= self.minident.get() and length >= self.minlengthblast.get() and mm <= self.maxmm.get() and eval <= self.maxevalue.get() and bitscore >= self.minbitscore.get():
                     self.hitlist.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
-        self.update_console('Comparison created.')
+        self.queue.put('Comparison created.')
 
 
     def writeWorkCont(self):
@@ -2146,18 +2314,25 @@ class App:
         except:
             pass
         self.blast_options.destroy()
+        if self.selfcomparefile.get() == '':
+            if not which('blastn') or not which('makeblastdb'):
+                tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST or include own comparison file.')
+                return
         self.queue = Queue.Queue()
         self.thethread = threading.Thread(target=self.self_hits_thread)
         self.thethread.start()
+        self.abort = False
+        self.update_console('Finding self hits.')
         self.update_self_hits()
 
 
     def update_self_hits(self):
+        self.dot_console()
         while self.queue.qsize():
             try:
                 text = self.queue.get(0)
                 self.update_console(text)
-                if text != 'Hits found.':
+                if text[-11:] != 'hits found.':
                     root.after(1000, self.update_self_hits)
                 else:
                     self.draw_self_hits()
@@ -2165,7 +2340,10 @@ class App:
             except Queue.Empty:
                 pass
         if not self.thethread.is_alive():
-            self.update_console('Self comparison failed, please check console output.')
+            if self.abort:
+                self.update_console('Thread stopped.')
+            else:
+                self.update_console('Self comparison failed, please check console output.')
             return
         elif not self.queue.qsize():
             root.after(1000, self.update_self_hits)
@@ -2182,8 +2360,9 @@ class App:
             blastfile = open(self.workingDir.get() + '/contigscontigs.out')
         else:
             blastfile = open(self.selfcomparefile.get())
-        self.queue.put('Comparison created.')
+        self.queue.put('Comparison file created.')
         self.selfhit = []
+        self.queue.put('Getting hits.')
         for line in blastfile:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = line.split()
             qstart, qstop, rstart, rstop, length, mm = map(int, [qstart, qstop, rstart, rstop, length, mm])
@@ -2197,7 +2376,7 @@ class App:
                     if qstart < min([rstart, rstop]):
                         self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
         blastfile.close()
-        self.queue.put('Hits found.')
+        self.queue.put(str(len(self.selfhit)) + ' hits found.')
 
 
     def draw_self_hits(self):
@@ -2322,7 +2501,10 @@ class App:
             self.drawEdges()
         elif self.view.get() == 'All':
             self.visible = set(self.contigDict)
-            self.orderContigsAll()
+            if self.viewref.get() and not self.hitlist is None and not self.reforder is None:
+                self.orderContigsAllBlast()
+            else:
+                self.orderContigsAll()
             self.drawContigs()
             self.drawEdges()
         elif self.view.get() == 'List':
@@ -2333,7 +2515,7 @@ class App:
             self.drawRefHits()
         self.canvas.move(ALL, -self.leftmost + 50, 0)
         self.currxscroll = self.rightmost - self.leftmost + 200
-        self.curryscroll = 1000
+        self.curryscroll = self.currxscroll
         self.canvas.configure(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
         self.view_options.destroy()
 
@@ -2522,6 +2704,103 @@ class App:
             self.contigDict[i[1]].ypos = self.contigline
             currxpos += self.contigDict[i[1]].xlength + 10
 
+    def orderContigsAllBlast(self):
+        refpos = []
+        currx = 0
+        for i in self.reforder:
+            refpos.append(currx)
+            currx += len(self.refDict[i]) / self.scaledown.get() + 10
+        refpos = map(lambda x: x + max((self.currxscroll/2 - currx/2, 10)), refpos)
+        self.refpos = {}
+        for i in range(len(refpos)):
+            self.refpos[self.reforder[i]] = refpos[i]
+        besthit = {}
+        for i in self.hitlist:
+            query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
+            if query in besthit:
+                if length > besthit[query][1]:
+                    besthit[query] = [self.refpos[subject] + min((rstart, rstop)) / self.scaledown.get(), length]
+            else:
+                besthit[query] = [self.refpos[subject] + min((rstart, rstop)) / self.scaledown.get(), length]
+        qpos = []
+        for i in besthit:
+            qpos.append((besthit[i][0], i))
+        qpos.sort()
+        currxpos = qpos[0][0]
+        self.startviewpos = currxpos - 20
+        todo = set(self.contigDict)
+        for i in qpos:
+            self.contigDict[i[1]].xpos = currxpos
+            self.contigDict[i[1]].ypos = self.contigline
+            currxpos += self.contigDict[i[1]].xlength + 10
+            todo.remove(i[1])
+        listoflists = []
+        while len(todo) != 0:
+            longest = None
+            length = 0
+            for i in todo:
+                if self.contigDict[i].length > length:
+                    length = self.contigDict[i].length
+                    longest = i
+            todo.remove(longest)
+            currlist = [longest]
+            currnode = longest
+            currdir = True
+            goforward = True
+            while goforward:
+                goforward = False
+                if currdir:
+                    for i in self.contigDict[currnode].to:
+                        if i[0] in todo:
+                            todo.remove(i[0])
+                            currlist.append(i[0])
+                            currnode = i[0]
+                            currdir = i[1]
+                            goforward = True
+                            break
+                else:
+                    for i in self.contigDict[currnode].fr:
+                        if i[0] in todo:
+                            todo.remove(i[0])
+                            currlist.append(i[0])
+                            currnode = i[0]
+                            currdir = i[1]
+                            goforward = True
+                            break
+            currnode = longest
+            currdir = False
+            goforward = True
+            while goforward:
+                goforward = False
+                if currdir:
+                    for i in self.contigDict[currnode].to:
+                        if i[0] in todo:
+                            todo.remove(i[0])
+                            currlist = [i[0]] + currlist
+                            currnode = i[0]
+                            currdir = i[1]
+                            goforward = True
+                            break
+                else:
+                    for i in self.contigDict[currnode].fr:
+                        if i[0] in todo:
+                            todo.remove(i[0])
+                            currlist = [i[0]] + currlist
+                            currnode = i[0]
+                            currdir = i[1]
+                            goforward = True
+                            break
+            listoflists.append(currlist)
+        currpos = 0
+        qpos = []
+        for i in listoflists:
+            for j in i:
+                qpos.append((currpos, j))
+                currpos += self.contigDict[j].xlength + 10
+        qpos = map(lambda y: (y[0] + currxpos, y[1]), qpos)
+        for i in qpos:
+            self.contigDict[i[1]].xpos = i[0]
+            self.contigDict[i[1]].ypos = self.contigline
 
     def findPaths(self):
         try:
