@@ -387,11 +387,15 @@ class App:
         starttag = thetag + 's'
         endtag = thetag + 'e'
         btag = thetag + 'b'
+        sstag = thetag + 'ss'
+        setag = thetag + 'se'
         self.visible.remove(thetag[1:])
         self.canvas.delete(thetag)
         self.canvas.delete(starttag)
         self.canvas.delete(endtag)
         self.canvas.delete(btag)
+        self.canvas.delete(sstag)
+        self.canvas.delete(setag)
 
     def reverse_contig(self):
         thetag = self.rctag
@@ -417,19 +421,36 @@ class App:
             x = self.canvas.coords(i)
             newx = start + end - x[4]
             self.canvas.coords(i, x[0], x[1], (x[0] + newx) / 2, abs(x[0] - newx) / 4 + (x[1] + x[5]) / 2, newx, x[5])
-        htag = thetag + 'h'
+        htag = thetag + 'ss'
         selfhits = self.canvas.find_withtag(htag)
         for i in selfhits:
             x = self.canvas.coords(i)
-            newx1 = start + end - x[2]
-            newx2 = start + end - x[0]
-            self.canvas.coords(i, newx1, x[1], newx2, x[3])
+            newx1 = start + end - x[0]
+            newx2 = start + end - x[16]
+            self.canvas.coords(i, newx1, x[1], newx1, x[1], (newx1 + x[6]) / 2, abs(newx1 - x[6]) /4 + (x[1] + x[7]) / 2, x[6], x[7],
+                                x[6], x[7], x[10], x[11], x[10], x[11], (newx2 + x[10]) / 2, abs(newx2 - x[10]) /4 + (x[1] + x[7]) / 2,
+                                newx2, x[17], newx2, x[17])
             thecolour = self.canvas.itemcget(i, "fill")
             if thecolour == "#F85931":
                 thecolour = "#EDB92E"
             else:
                 thecolour = "#F85931"
-            self.canvas.itemconfig(self.canvas.gettags(i)[-1], fill=thecolour)
+            self.canvas.itemconfig(i, fill=thecolour)
+        htag = thetag + 'se'
+        selfhits = self.canvas.find_withtag(htag)
+        for i in selfhits:
+            x = self.canvas.coords(i)
+            newx1 = start + end - x[6]
+            newx2 = start + end - x[10]
+            self.canvas.coords(i, x[0], x[1], x[0], x[1], (x[0] + newx1) / 2, abs(x[0] - newx1) /4 + (x[1] + x[7]) / 2, newx1, x[7],
+                                newx1, x[7], newx2, x[11], newx2, x[11], (x[16] + newx2) / 2,
+                                abs(x[16] - (newx2)) /4 + (x[1] + x[7]) / 2, x[16], x[17], x[16], x[17])
+            thecolour = self.canvas.itemcget(i, "fill")
+            if thecolour == "#F85931":
+                thecolour = "#EDB92E"
+            else:
+                thecolour = "#F85931"
+            self.canvas.itemconfig(i, fill=thecolour)
         endtag = thetag + 'b'
         bhits = self.canvas.find_withtag(endtag)
         if endtag[0] == 'r':
@@ -877,7 +898,7 @@ class App:
         arcs= self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            self.canvas.coords(i, x[0], x[1], x[2] + diffx/2, abs(x[0] - x[4] + diffx) / 4 + (x[1] + x[5] + diffy) / 2, x[4] + diffx, x[5] + diffy)
+            self.canvas.coords(i, x[0], x[1], x[2] + diffx/2, abs(x[0] - (x[4] + diffx)) / 4 + (x[1] + x[5] + diffy) / 2, x[4] + diffx, x[5] + diffy)
         endtag = thetag + 'b'
         arcs= self.canvas.find_withtag(endtag)
         if endtag[0] == 'r':
@@ -888,6 +909,21 @@ class App:
             for i in arcs:
                 x = self.canvas.coords(i)
                 self.canvas.coords(i, x[0], x[1], x[2], x[3], x[4] + diffx, x[5] + diffy, x[6] + diffx, x[7] + diffy)
+        starttag = thetag + 'ss'
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            self.canvas.coords(i, x[0] + diffx, x[1] + diffy, x[0] + diffx, x[1] + diffy, (x[0] + diffx + x[6]) / 2, abs(x[0] + diffx - x[6]) /4 + (x[1] + diffy + x[7]) / 2, x[6], x[7],
+                                x[6], x[7], x[10], x[11], x[10], x[11], (x[16] + diffx + x[10]) / 2, abs(x[16] + diffx - x[10]) /4 + (x[1] + diffy + x[7]) / 2,
+                                x[16] + diffx, x[17] + diffy, x[16] + diffx, x[17] + diffy)
+        endtag = thetag + 'se'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            self.canvas.coords(i, x[0], x[1], x[0], x[1], (x[0] + x[6] + diffx) / 2, abs(x[0] - (x[6] + diffx)) /4 + (x[1] + x[7] + diffy) / 2, x[6] + diffx, x[7] + diffy,
+                                x[6] + diffx, x[7] + diffy, x[10] + diffx, x[11] + diffy, x[10] + diffx, x[11] + diffy, (x[16] + x[10] + diffx) / 2,
+                                abs(x[16] - (x[10] + diffx)) /4 + (x[1] + x[7] + diffy) / 2, x[16], x[17], x[16], x[17])
+
 
     def update_console(self, text):
         if self.consoletext.get() == '':
@@ -2300,6 +2336,7 @@ class App:
             if not which('blastn') or not which('makeblastdb'):
                 tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST or include own comparison file.')
                 return
+        self.canvas.delete('selfhit')
         self.queue = Queue.Queue()
         self.thethread = threading.Thread(target=self.self_hits_thread)
         self.thethread.start()
@@ -2363,6 +2400,7 @@ class App:
         # need to add in hits for duplicates
         self.canvas.delete('sblast')
         hitnum = 0
+        self.selfhit.sort(key=lambda x: x[3], reverse=True)
         for i in self.selfhit:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
             if query in self.visible and subject in self.visible:
@@ -2383,22 +2421,28 @@ class App:
                 else:
                     startx1 = qcoords[2] - qstart * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
                     startx2 = qcoords[2] - qstop * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
-                self.canvas.create_rectangle(startx1, qcoords[1], startx2, qcoords[3],
-                                              fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
+
+                #self.canvas.create_rectangle(startx1, qcoords[1], startx2, qcoords[3],
+                #                              fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
                 if self.contigDict[subject].orient[0]:
                     endx1 = rcoords[0] + rstart * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
                     endx2 = rcoords[0] + rstop * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
                 else:
                     endx1 = rcoords[2] - rstart * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
                     endx2 = rcoords[2] - rstop * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
-                self.canvas.create_rectangle(endx1, rcoords[1], endx2, rcoords[3],
-                                              fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
-                starty = qcoords[1] + self.contigheight
-                endy = rcoords[1] + self.contigheight
-                self.canvas.create_line(startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,\
-                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
-                self.canvas.create_line(startx2, starty, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2, endx2, endy,\
-                                         smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                # self.canvas.create_rectangle(endx1, rcoords[1], endx2, rcoords[3],
+                #                               fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
+                # starty = qcoords[1] + self.contigheight
+                # endy = rcoords[1] + self.contigheight
+                # self.canvas.create_line(startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,\
+                #                          smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                # self.canvas.create_line(startx2, starty, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2, endx2, endy,\
+                #                          smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
+                starty = qcoords[1] + self.contigheight / 2
+                endy = rcoords[1] + self.contigheight / 2
+                self.canvas.create_polygon(startx1, starty, startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,
+                                           endx1, endy, endx2, endy, endx2, endy, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2,
+                                           startx2, starty, startx2, starty, smooth=1, fill=colour, outline='black', tags=('c' + query + 'ss', 'c' + subject + 'se', 'selfhit'))
         self.canvas.tag_raise('arc')
         self.canvas.tag_raise('text')
         self.blast_options.destroy()
