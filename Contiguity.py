@@ -21,8 +21,9 @@ transtab = string.maketrans('atcgATCG', 'tagcTAGC')
 
 
 class contig:
-    def __init__(self, name, sequence):
+    def __init__(self, name, shortname, sequence):
         self.name = name
+        self.shortname = shortname
         self.forseq = sequence.lower()
         tempseq = self.forseq[::-1]
         self.revseq = tempseq.translate(transtab)
@@ -91,6 +92,9 @@ class App:
         self.viewmenu.add_command(label="Stretch", command=self.stretch)
         self.menubar.add_cascade(label="View", menu=self.viewmenu)
         self.graphmenu = Menu(self.menubar, tearoff=0)
+        self.graphmenu.add_command(label="Select all", command=self.select_all)
+        self.graphmenu.add_command(label="Clear selected", command=self.clear_lists)
+        self.graphmenu.add_separator()
         self.graphmenu.add_command(label="Find paths", command=self.findPaths)
         self.graphmenu.add_command(label="Write fasta", command=self.writeFasta)
         self.graphmenu.add_command(label="Write multifasta", command=self.writeMultiFasta)
@@ -268,7 +272,6 @@ class App:
         self.update_console('Terminating threads.')
         self.quitpoll()
 
-
     def quitpoll(self):
         self.dot_console()
         try:
@@ -278,6 +281,45 @@ class App:
                 root.quit()
         except:
             root.quit()
+
+    def select_all(self):
+        self.namelist.delete(0, END)
+        self.dirlist.delete(0, END)
+        self.lengthlist.delete(0, END)
+        self.selected = []
+        contiglist = self.canvas.find_withtag('contig')
+        newlist = []
+        for i in contiglist:
+            self.canvas.itemconfig(i, fill='#A3A948')
+            coords = self.canvas.coords(i)
+            thetag = self.canvas.gettags(i)[0]
+            newlist.append((coords, thetag))
+        newlist.sort()
+        for i in newlist:
+            thetag = i[1]
+            contig = thetag[1:]
+            if '_dup' in contig:
+                dupno = int(contig.split('_dup')[1])
+                contig = contig.split('_dup')[0]
+            else:
+                dupno = 0
+            self.namelist.insert(END, contig)
+            if self.contigDict[contig].orient[dupno]:
+                self.dirlist.insert(END, '+')
+            else:
+                self.dirlist.insert(END, '-')
+            self.lengthlist.insert(END, str(self.contigDict[contig].length))
+            self.selected.append(thetag)
+
+    def clear_lists(self):
+        self.namelist.delete(0, END)
+        self.dirlist.delete(0, END)
+        self.lengthlist.delete(0, END)
+        self.selected = []
+        contiglist = self.canvas.find_withtag('contig')
+        for i in contiglist:
+            self.canvas.itemconfig(i, fill='#009989')
+
 
 
     def addtolist(self, event):
@@ -511,17 +553,17 @@ class App:
                 dir = '+'
             else:
                 dir = '-'
-            thetext = i + ' ' + dir + ' ' + self.contigDict[i].strlen
+            thetext = self.contigDict[i].shortname + ' ' + dir + ' ' + self.contigDict[i].strlen
             text = self.canvas.create_text(x1 + 2, y1 + self.contigheight/2, fill='white', font=self.customFont,
                                            anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
             if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
                 self.canvas.delete(text)
-                thetext = i + ' ' + dir
+                thetext = self.contigDict[i].shortname + ' ' + dir
                 text = self.canvas.create_text(x1 + 2, y1 + self.contigheight/2, fill='white', font=self.customFont,
                                                anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                 if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
                     self.canvas.delete(text)
-                    thetext = i
+                    thetext = self.contigDict[i].shortname
                     text = self.canvas.create_text(x1 + 2, y1 + self.contigheight/2, fill='white', font=self.customFont,
                                                    anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                     if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
@@ -739,13 +781,13 @@ class App:
                 contigend = self.canvas.coords('c' + i)[2]
                 if textend >= contigend - 2:
                     self.canvas.delete(z)
-                    thetext = i + ' ' + dir
+                    thetext = self.contigDict[i].shortname + ' ' + dir
                     text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
                                                    anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                     textend = self.canvas.bbox(text)[2]
                     if textend >= contigend - 2:
                         self.canvas.delete(text)
-                        thetext = i
+                        thetext = self.contigDict[i].shortname
                         text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
                                                        anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                         textend = self.canvas.bbox(text)[2]
@@ -778,19 +820,19 @@ class App:
                 length = self.contigDict[i].strlen
                 textcoords = (self.canvas.coords(z)[0] + 2, (self.canvas.coords(z)[1] + self.canvas.coords(z)[3]) /2)
                 contigend = self.canvas.coords('c' + i)[2]
-                thetext = i + ' ' + dir + ' ' + length
+                thetext = self.contigDict[i].shortname + ' ' + dir + ' ' + length
                 text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
                                                 anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                 textend = self.canvas.bbox(text)[2]
                 if textend >= contigend - 2:
                     self.canvas.delete(text)
-                    thetext = i + ' ' + dir
+                    thetext = self.contigDict[i].shortname + ' ' + dir
                     text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
                                                    anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                     textend = self.canvas.bbox(text)[2]
                     if textend >= contigend - 2:
                         self.canvas.delete(text)
-                        thetext = i
+                        thetext = self.contigDict[i].shortname
                         text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
                                                        anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                         textend = self.canvas.bbox(text)[2]
@@ -874,6 +916,7 @@ class App:
         self.contigheight = 25
         self.fontsize = 12
         self.customFont.configure(size=12)
+        self.clear_lists()
 
     def load_assembly(self):
         filename = tkFileDialog.askopenfilename()
@@ -887,6 +930,7 @@ class App:
         self.contigDict = {}
         self.edgelist = []
         if what[0] == '>':
+            self.contigfile.set(filename)
             self.load_fasta()
             self.update_console('FASTA loaded.')
         elif what.split()[0] == 'NODE':
@@ -900,8 +944,9 @@ class App:
             tkMessageBox.showerror('Invalid format', 'Contiguity cannot recognise file type.')
         self.writeWorkCont()
 
+
     def load_fasta(self):
-        fastafile = open(self.csagfile.get())
+        fastafile = open(self.contigfile.get())
         namelist = []
         maxlen = 0
         for line in fastafile:
@@ -920,7 +965,7 @@ class App:
                 cuta = i
                 break
             else:
-                cuta = 0
+                cuta = 1
         for i in range(1, maxlen):
             startletter = namelist[0][-i]
             same = True
@@ -934,32 +979,36 @@ class App:
             else:
                 cutb = None
         fastafile.close()
-        fastafile = open(self.csagfile.get())
+        fastafile = open(self.contigfile.get())
         first = True
         for line in fastafile:
             if line.startswith('>'):
                 if first:
                     first = False
                 else:
-                    aninstance = contig(name, seq)
-                    self.contigDict[name] = aninstance
-                name = line.rstrip()[cuta:cutb]
+                    aninstance = contig(entry, name, seq)
+                    self.contigDict[entry] = aninstance
+                entry = line.split()[0][1:]
+                if entry.startswith('NODE_'):
+                    name = entry.split('_')[1]
+                else:
+                    name = line.rstrip()[cuta:cutb]
+                    if name == '':
+                        name = entry
                 seq = ''
             else:
                 seq += line.rstrip()
-        if name[:5] == 'NODE_':
-            name = name.split('_')[1]
-        aninstance = contig(name, seq)
-        self.contigDict[name] = aninstance
+        aninstance = contig(entry, name, seq)
+        self.contigDict[entry] = aninstance
         fastafile.close()
 
     def load_csag(self):
         csag = open(self.csagfile.get())
         for line in csag:
             if line.split()[0] == 'NODE':
-                title, name, seq = line.split()
-                aninstance = contig(name, seq)
-                self.contigDict[name] = aninstance
+                title, entry, name, seq = line.split()
+                aninstance = contig(entry, name, seq)
+                self.contigDict[entry] = aninstance
             elif line.split()[0] == 'EDGE':
                 title, n1, d1, n2, d2, overlap = line.split()
                 if d1 == 'True':
@@ -987,7 +1036,6 @@ class App:
             else:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
-
 
     def loadref(self):
         filename = tkFileDialog.askopenfilename(parent=self.blast_options)
@@ -1202,11 +1250,10 @@ class App:
             root.after(1000, self.update_edges)
             return
 
-
     def edge_thread(self):
         self.edgelist = []
         self.contigDict = {}
-        self.populateContigDict()
+        self.load_fasta()
         self.writeWorkCont()
         if self.getOverlap.get() == 1:
             self.queue.put('Finding overlaps.')
@@ -1278,68 +1325,6 @@ class App:
         self.writeCSAG()
         self.csag.set(self.workingDir.get() + '/CSAG.txt')
         self.queue.put('Creating CSAG finished.')
-
-    def populateContigDict(self):
-        fastafile = open(self.contigfile.get())
-        namelist = []
-        maxlen = 0
-        getvel = False
-        for line in fastafile:
-            if line.startswith('>'):
-                namelist.append(line.split()[0])
-                if maxlen < len(namelist[-1]):
-                    maxlen = len(namelist[-1])
-        splitlist = namelist[0].split('_')
-        if len(splitlist) > 2 and splitlist[0] == '>NODE' and splitlist[1].isdigit():
-            getvel = True
-        else:
-            for i in range(maxlen):
-                startletter = namelist[0][i]
-                same = True
-                for j in namelist[1:]:
-                    if j[i] != startletter:
-                        same = False
-                        break
-                if not same:
-                    cuta = i
-                    break
-                else:
-                    cuta = 0
-            for i in range(1, maxlen):
-                startletter = namelist[0][-i]
-                same = True
-                for j in namelist[1:]:
-                    if j[-i] != startletter:
-                        same = False
-                        break
-                if not same:
-                    cutb = -i + 1
-                    if cutb == 0:
-                        cutb = None
-                    break
-                else:
-                    cutb = None
-        fastafile.close()
-        fastafile = open(self.contigfile.get())
-        first = True
-        for line in fastafile:
-            if line.startswith('>'):
-                if first:
-                    first = False
-                else:
-                    aninstance = contig(name, seq)
-                    self.contigDict[name] = aninstance
-                if getvel:
-                    name = line.split('_')[1]
-                else:
-                    name = line.split()[0][cuta:cutb]
-                seq = ''
-            else:
-                seq += line.rstrip()
-        if name[:5] == 'NODE_':
-            name = name.split('_')[1]
-        aninstance = contig(name, seq)
-        self.contigDict[name] = aninstance
 
     def get_overlap_edges(self):
         minoverlap, maxmm, maxtrim = self.minoverlap.get(), self.maxmm.get(), self.maxtrim.get()
@@ -1810,7 +1795,6 @@ class App:
                             self.edgelist.append((i[1:], True, j[1:], True, 'nnnnnnnn'))
                         else:
                             self.edgelist.append((i[1:], True, j[1:], False, 'nnnnnnnnn'))
-            
 
     def get_nmer_freq(self):
         nmersize, nmercut, reads  = self.nmersize.get(), self.nmercut.get(), self.readfile.get()
@@ -2052,7 +2036,6 @@ class App:
                 outlist.append(self.edgelist[i])
         self.edgelist = outlist
 
-
     def removeDuplicates(self):
         newedgelist = {}
         edgeCountDict = {}
@@ -2104,7 +2087,7 @@ class App:
     def writeCSAG(self):
         out = open(self.workingDir.get() + '/CSAG.txt', 'w')
         for i in self.contigDict:
-            out.write('NODE\t' + i + '\t' + self.contigDict[i].forseq + '\n')
+            out.write('NODE\t' + i + '\t' + self.contigDict[i].shortname + '\t' + self.contigDict[i].forseq + '\n')
         for i in self.edgelist:
             out.write('EDGE\t' + str(i[0]) + '\t' + str(i[1]) + '\t' + str(i[2]) + '\t' + str(i[3]) + '\t' + str(i[4]) + '\n')
         out.close()
@@ -2175,8 +2158,9 @@ class App:
         if self.blastfile.get() == '':
             self.blastit = tkMessageBox.askquestion('No blast files.', 'Create BLAST output?')
         else:
-            tkMessageBox.showerror('No Comparison', 'Please include comparison file.')
-            return
+            if not os.path.exists(self.blastfile.get()):
+                tkMessageBox.showerror('No Comparison', 'Please choose valid comparison file.')
+                return
         self.blast_options.destroy()
         try:
             if self.thethread.is_alive():
@@ -2191,7 +2175,6 @@ class App:
         self.abort = False
         self.update_console('Creating comparison')
         self.update_create_comp()
-
 
     def update_create_comp(self):
         self.dot_console()
@@ -2248,10 +2231,10 @@ class App:
                 query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = line.split()
                 qstart, qstop, rstart, rstop, length, mm = map(int, [qstart, qstop, rstart, rstop, length, mm])
                 ident, eval, bitscore = map(float, [ident, eval, bitscore])
-                if ident >= self.minident.get() and length >= self.minlengthblast.get() and mm <= self.maxmm.get() and eval <= self.maxevalue.get() and bitscore >= self.minbitscore.get():
+                if ident >= self.minident.get() and length >= self.minlengthblast.get() and eval <= self.maxevalue.get() and bitscore >= self.minbitscore.get()\
+                    and (length >= self.minlengthratio.get() * self.contigDict[query].length or length >= self.minlengthratio.get() * len(self.refDict[subject])):
                     self.hitlist.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
         self.queue.put('Comparison created.')
-
 
     def writeWorkCont(self):
         contout = open(self.workingDir.get() + '/contigs.fa', 'w')
@@ -2304,7 +2287,6 @@ class App:
         self.closeblastbut.grid(column=2, row=8, sticky=E, pady=5)
         self.frame2.grid(padx=10, pady=10)
 
-
     def ok_self_compare(self):
         try:
             if self.thethread.is_alive():
@@ -2324,7 +2306,6 @@ class App:
         self.abort = False
         self.update_console('Finding self hits.')
         self.update_self_hits()
-
 
     def update_self_hits(self):
         self.dot_console()
@@ -2367,7 +2348,7 @@ class App:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = line.split()
             qstart, qstop, rstart, rstop, length, mm = map(int, [qstart, qstop, rstart, rstop, length, mm])
             ident, eval, bitscore = map(float, [ident, eval, bitscore])
-            if ident >= self.minident.get() and length >= self.minlengthblast.get() and mm <= self.maxmm.get() and eval <= self.maxevalue.get() and bitscore >= self.minbitscore.get()\
+            if ident >= self.minident.get() and length >= self.minlengthblast.get() and eval <= self.maxevalue.get() and bitscore >= self.minbitscore.get()\
               and (length >= self.minlengthratio.get() * self.contigDict[query].length or length >= self.minlengthratio.get() * self.contigDict[subject].length):
                 if query != subject:
                     if query < subject:
@@ -2377,7 +2358,6 @@ class App:
                         self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
         blastfile.close()
         self.queue.put(str(len(self.selfhit)) + ' hits found.')
-
 
     def draw_self_hits(self):
         # need to add in hits for duplicates
@@ -2464,6 +2444,7 @@ class App:
         self.canvas.delete(ALL)
         self.newscaledown = self.scaledown.get()
         self.visible = set()
+        self.clear_lists()
         self.contigheight = 25
         self.currxscroll = self.originalxscroll
         self.curryscroll = self.originalyscroll
@@ -2563,6 +2544,11 @@ class App:
             self.canvas.create_rectangle(self.refpos[i], self.refline, \
                                          self.refpos[i] + len(self.refDict[i]) / self.scaledown.get(), self.refline + self.contigheight, \
                                          fill="#CE1836", tags=('r' + i, "ref", "map"))
+            thetext = i
+            text = self.canvas.create_text(self.refpos[i] + 2, self.refline + self.contigheight/2,\
+                                            fill='white', font=self.customFont, anchor=W, text=thetext, tags=('r' + i, 'ref', 'map'))
+            if self.canvas.bbox(text)[2] >= self.refpos[i] + len(self.refDict[i]) / self.scaledown.get() - 2:
+                self.canvas.delete(text)
 
     def drawContigs(self):
         for i in self.visible:
@@ -2577,17 +2563,17 @@ class App:
                 dir = '+'
             else:
                 dir = '-'
-            thetext = i + ' ' + dir + ' ' + self.contigDict[i].strlen
+            thetext = self.contigDict[i].shortname + ' ' + dir + ' ' + self.contigDict[i].strlen
             text = self.canvas.create_text(self.contigDict[i].xpos + 2, self.contigDict[i].ypos + self.contigheight/2,\
                                             fill='white', font=self.customFont, anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
             if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
                 self.canvas.delete(text)
-                thetext = i + ' ' + dir
+                thetext = self.contigDict[i].shortname + ' ' + dir
                 text = self.canvas.create_text(self.contigDict[i].xpos + 2, self.contigDict[i].ypos + self.contigheight/2,\
                                                 fill='white', font=self.customFont, anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                 if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
                     self.canvas.delete(text)
-                    thetext = i
+                    thetext = self.contigDict[i].shortname
                     text = self.canvas.create_text(self.contigDict[i].xpos + 2, self.contigDict[i].ypos + self.contigheight/2,\
                                                     fill='white', font=self.customFont, anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
                     if self.canvas.bbox(text)[2] >= self.contigDict[i].xpos + self.contigDict[i].xlength -2:
@@ -2871,7 +2857,6 @@ class App:
         for i in self.contigstoadd:
             self.add_contig(i)
 
-
     def findpathsthread(self):
         maxbp = self.maxbp.get()
         maxnode = self.maxnode.get()
@@ -3023,7 +3008,6 @@ class App:
         self.okedges = Button(self.frame5, text='Ok', command=self.ok_fasta)
         self.okedges.grid(row=3, column=2, sticky=E)
         self.frame5.grid(padx=10, pady=10)
-
 
     def ok_fasta(self):
         if self.outfile.get() == '':
