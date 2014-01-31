@@ -166,13 +166,15 @@ class App:
         self.lengthlist.bind('<Button-5>', self.onmousewheel)
         self.lengthlist.grid(row=1, column=0, sticky=NSEW)
         self.clscroll = Scrollbar(self.lengthframe, orient=VERTICAL)
-        self.clscroll.config(command=self.contiglistview)
+        self.clscroll.config(command=self.yview)
         self.clscroll.grid(row=1, column=1, sticky=NS)
         master.geometry('+10+20')
         root.minsize(600, 400)
         self.canvas.tag_bind('map', '<B1-Motion>', self.dragMove)
         self.canvas.tag_bind('map', '<Button-1>', self.recordMark)
         self.canvas.tag_bind('map', '<Double-Button-1>', self.addtolist)
+        self.canvas.tag_bind('blast', '<Double-Button-1>', self.showhitblast)
+        self.canvas.tag_bind('selfhit', '<Double-Button-1>', self.showhitsblast)
         self.rcmenu = Menu(root, tearoff=0)
         self.rcmenu.add_command(label="Reverse", command=self.reverse_contig)
         self.rcmenu.add_command(label="Remove", command=self.remove_contig)
@@ -214,6 +216,8 @@ class App:
         self.minlength = IntVar(value=100)
         self.minlengthblast = IntVar(value=100)
         self.intra = IntVar(value=0)
+        self.onlyedge = IntVar(value=0)
+        self.maxedge = IntVar(value=10)
         self.minlengthratio = DoubleVar(value=0.0)
         self.minident = DoubleVar(value=95.0)
         self.minbitscore = DoubleVar(value=0)
@@ -351,15 +355,151 @@ class App:
                     self.selected.pop(i)
                     break
 
+    def showhitblast(self, event):
+        try:
+            self.hitwindow.destroy()
+        except:
+            pass
+        self.hitwindow = Toplevel()
+        self.hitwindow.wm_attributes("-topmost", 1)
+        self.hitframe = Frame(self.hitwindow)
+        self.hitwindow.geometry('+20+30')
+        self.hitwindow.title('BLAST hit')
+        thetag = self.canvas.gettags(CURRENT)[-2]
+        query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = map(str, self.hitlist[int(thetag) -1])
+        self.hl1 = Label(self.hitframe, text='Query:', anchor=E)
+        self.hl1.grid(column=0, row=1)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=query), state='readonly')
+        self.he1.grid(column=1, row=1)
+        self.hl1 = Label(self.hitframe, text='Subject:', anchor=E)
+        self.hl1.grid(column=0, row=2)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=subject), state='readonly')
+        self.he1.grid(column=1, row=2)
+        self.hl1 = Label(self.hitframe, text='Identity:', anchor=E)
+        self.hl1.grid(column=0, row=3)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=ident), state='readonly')
+        self.he1.grid(column=1, row=3)
+        self.hl1 = Label(self.hitframe, text='Length:', anchor=E)
+        self.hl1.grid(column=0, row=4)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=length), state='readonly')
+        self.he1.grid(column=1, row=4)
+        self.hl1 = Label(self.hitframe, text='Mismatches:', anchor=E)
+        self.hl1.grid(column=0, row=5)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=mm), state='readonly')
+        self.he1.grid(column=1, row=5)
+        self.hl1 = Label(self.hitframe, text='Indels:', anchor=E)
+        self.hl1.grid(column=0, row=6)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=indel), state='readonly')
+        self.he1.grid(column=1, row=6)
+        self.hl1 = Label(self.hitframe, text='Query start:', anchor=E)
+        self.hl1.grid(column=0, row=7)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=qstart), state='readonly')
+        self.he1.grid(column=1, row=7)
+        self.hl1 = Label(self.hitframe, text='Query end:', anchor=E)
+        self.hl1.grid(column=0, row=8)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=qstop), state='readonly')
+        self.he1.grid(column=1, row=8)
+        self.hl1 = Label(self.hitframe, text='Subject start:', anchor=E)
+        self.hl1.grid(column=0, row=9)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=rstart), state='readonly')
+        self.he1.grid(column=1, row=9)
+        self.hl1 = Label(self.hitframe, text='Subject end:', anchor=E)
+        self.hl1.grid(column=0, row=10)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=rstop), state='readonly')
+        self.he1.grid(column=1, row=10)
+        self.hl1 = Label(self.hitframe, text='E. value:', anchor=E)
+        self.hl1.grid(column=0, row=11)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=eval), state='readonly')
+        self.he1.grid(column=1, row=11)
+        self.hl1 = Label(self.hitframe, text='Bitscore:', anchor=E)
+        self.hl1.grid(column=0, row=12)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=bitscore), state='readonly')
+        self.he1.grid(column=1, row=12)
+        self.hitframe.grid(padx=10, pady=10)
 
 
-    def contiglistview(self, *args):
-        apply(self.namelist.yview, args)
-        apply(self.dirlist.yview, args)
-        apply(self.lengthlist.yview, args)
+    def showhitsblast(self, event):
+        try:
+            self.hitwindow.destroy()
+        except:
+            pass
+        self.hitwindow = Toplevel()
+        self.hitwindow.wm_attributes("-topmost", 1)
+        self.hitframe = Frame(self.hitwindow)
+        self.hitwindow.geometry('+20+30')
+        self.hitwindow.title('BLAST hit')
+        thetag = self.canvas.gettags(CURRENT)[-2]
+        query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = map(str, self.selfhit[int(thetag) -1])
+        self.hl1 = Label(self.hitframe, text='Query:', anchor=E)
+        self.hl1.grid(column=0, row=1)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=query), state='readonly')
+        self.he1.grid(column=1, row=1)
+        self.hl1 = Label(self.hitframe, text='Subject:', anchor=E)
+        self.hl1.grid(column=0, row=2)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=subject), state='readonly')
+        self.he1.grid(column=1, row=2)
+        self.hl1 = Label(self.hitframe, text='Identity:', anchor=E)
+        self.hl1.grid(column=0, row=3)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=ident), state='readonly')
+        self.he1.grid(column=1, row=3)
+        self.hl1 = Label(self.hitframe, text='Length:', anchor=E)
+        self.hl1.grid(column=0, row=4)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=length), state='readonly')
+        self.he1.grid(column=1, row=4)
+        self.hl1 = Label(self.hitframe, text='Mismatches:', anchor=E)
+        self.hl1.grid(column=0, row=5)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=mm), state='readonly')
+        self.he1.grid(column=1, row=5)
+        self.hl1 = Label(self.hitframe, text='Indels:', anchor=E)
+        self.hl1.grid(column=0, row=6)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=indel), state='readonly')
+        self.he1.grid(column=1, row=6)
+        self.hl1 = Label(self.hitframe, text='Query start:', anchor=E)
+        self.hl1.grid(column=0, row=7)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=qstart), state='readonly')
+        self.he1.grid(column=1, row=7)
+        self.hl1 = Label(self.hitframe, text='Query end:', anchor=E)
+        self.hl1.grid(column=0, row=8)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=qstop), state='readonly')
+        self.he1.grid(column=1, row=8)
+        self.hl1 = Label(self.hitframe, text='Subject start:', anchor=E)
+        self.hl1.grid(column=0, row=9)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=rstart), state='readonly')
+        self.he1.grid(column=1, row=9)
+        self.hl1 = Label(self.hitframe, text='Subject end:', anchor=E)
+        self.hl1.grid(column=0, row=10)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=rstop), state='readonly')
+        self.he1.grid(column=1, row=10)
+        self.hl1 = Label(self.hitframe, text='E. value:', anchor=E)
+        self.hl1.grid(column=0, row=11)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=eval), state='readonly')
+        self.he1.grid(column=1, row=11)
+        self.hl1 = Label(self.hitframe, text='Bitscore:', anchor=E)
+        self.hl1.grid(column=0, row=12)
+        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=bitscore), state='readonly')
+        self.he1.grid(column=1, row=12)
+        self.hitframe.grid(padx=10, pady=10)
+
+    def yview(self, *args):
+        self.namelist.yview_scroll(args[0], 'units')
+        self.dirlist.yview_scroll(args[0], 'units')
+        self.lengthlist.yview_scroll(args[0], 'units')
+
+      #  apply(self.namelist.yview, args)
+      #  apply(self.dirlist.yview, args)
+      #  apply(self.lengthlist.yview, args)
 
     def onmousewheel(self, event):
-        pass
+        if event.num == 5 or event.delta == -120:
+            self.namelist.yview_scroll(1, 'units')
+            self.dirlist.yview_scroll(1, 'units')
+            self.lengthlist.yview_scroll(1, 'units')
+        if event.num == 4 or event.delta == 120:
+            self.namelist.yview_scroll(-1, 'units')
+            self.dirlist.yview_scroll(-1, 'units')
+            self.lengthlist.yview_scroll(-1, 'units')
+
+        return "break"
     
     def setselectedcontig(self, event):
         pass
@@ -477,7 +617,7 @@ class App:
         try:
             textitem = self.canvas.find_withtag(texttag)[0]
             thetext = self.canvas.itemcget(textitem, "text")
-            namelen = len(contig)
+            namelen = len(self.contigDict[contig].shortname)
             if len(thetext) >= namelen + 2:
                 start = thetext[:namelen + 1]
                 strand = thetext[namelen + 1]
@@ -519,7 +659,7 @@ class App:
                 x = self.canvas.coords(i)
                 colour = self.canvas.itemcget(i, "fill")
                 self.canvas.create_polygon(x[0], x[1], x[2], x[3], x[4] + mod, x[5] + mod, x[6] + mod, x[7] + mod, \
-                                           fill=colour, outline="black", tags=(newtag + 'b', self.canvas.gettags(i)[1], 'blast'))
+                                           fill=colour, outline="black", tags=(newtag + 'b', self.canvas.gettags(i)[1], 'blast', self.canvas.gettags(i)[-1]))
         self.canvas.create_rectangle(bb[0] + mod, bb[1] + mod, bb[2] + mod, bb[3] + mod, fill='#009989', tags=(newtag, 'contig', 'map'))
         htag = thetag + 'h'
         selfhits = self.canvas.find_withtag(htag)
@@ -943,7 +1083,6 @@ class App:
 
     def clear_all(self):
         self.canvas.delete(ALL)
-        self.hitlist = []
         self.edgelist = []
         self.contigDict = {}
         self.visible = set()
@@ -953,6 +1092,8 @@ class App:
         self.fontsize = 12
         self.customFont.configure(size=12)
         self.clear_lists()
+        self.hitlist = None
+        self.reforder = None
 
     def load_assembly(self):
         filename = tkFileDialog.askopenfilename()
@@ -2319,8 +2460,16 @@ class App:
         self.maxevaluelabel.grid(column=0, row=7, sticky=E)
         self.maxevalueentry = Entry(self.frame2, textvariable=self.maxevalue)
         self.maxevalueentry.grid(column=1, row=7, columnspan=2, sticky=EW)
+        self.intralabel = Label(self.frame2, text='Only show edge hits:', anchor=E)
+        self.intralabel.grid(column=0, row=8, sticky=E)
+        self.intraentry = Checkbutton(self.frame2, variable=self.onlyedge)
+        self.intraentry.grid(column=1, row=8, columnspan=2, sticky=EW)
+        self.maxevaluelabel = Label(self.frame2, text='Max. distance from edge:', anchor=E)
+        self.maxevaluelabel.grid(column=0, row=9, sticky=E)
+        self.maxevalueentry = Entry(self.frame2, textvariable=self.maxedge)
+        self.maxevalueentry.grid(column=1, row=9, columnspan=2, sticky=EW)
         self.closeblastbut = Button(self.frame2, text='Ok', command=self.ok_self_compare)
-        self.closeblastbut.grid(column=2, row=8, sticky=E, pady=5)
+        self.closeblastbut.grid(column=2, row=10, sticky=E, pady=5)
         self.frame2.grid(padx=10, pady=10)
 
     def ok_self_compare(self):
@@ -2389,10 +2538,38 @@ class App:
               and (length >= self.minlengthratio.get() * self.contigDict[query].length or length >= self.minlengthratio.get() * self.contigDict[subject].length):
                 if query != subject:
                     if query < subject:
-                        self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
+                        if self.onlyedge.get() == 1:
+                            if (qstart <= self.maxedge.get() or qstop >= self.contigDict[query].length - self.maxedge.get()) and \
+                              (rstart <= self.maxedge.get() or rstop <= self.maxedge.get() or
+                              rstart >= self.contigDict[subject].length - self.maxedge.get() or
+                              rstop >= self.contigDict[subject].length - self.maxedge.get()):
+                                self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
+                                if qstart <= self.maxedge.get() and rstart < rstop and rstop >= self.contigDict[subject].length -self.maxedge.get():
+                                    self.contigDict[query].fr.append((subject, False, qstop + self.contigDict[subject].length - rstop))
+                                    self.contigDict[subject].to.append((query, True, qstop + self.contigDict[subject].length - rstop))
+                                if qstart <= self.maxedge.get() and rstart > rstop and rstop <= self.maxedge.get():
+                                    self.contigDict[query].fr.append((subject, True, qstop + rstop -1))
+                                    self.contigDict[subject].fr.append((query, True, qstop + rstop -1))
+                                if qstop >= self.contigDict[query].length - self.maxedge.get() and rstart < rstop and rstart <= self.maxedge.get():
+                                    self.contigDict[query].to.append((subject, True, rstop + self.contigDict[query].length - qstop))
+                                    self.contigDict[subject].fr.append((query, False, rstop + self.contigDict[query].length - qstop))
+                                if qstop >= self.contigDict[query].length - self.maxedge.get() and rstart > rstop and \
+                                  rstart >= self.contigDict[subject].length -self.maxedge.get():
+                                    self.contigDict[query].to.append((subject, False, self.contigDict[subject].length - rstop + self.contigDict[query].length - qstop))
+                                    self.contigDict[subject].to.append((query, False, self.contigDict[subject].length - rstop + self.contigDict[query].length - qstop))
+                        else:
+                            self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
                 elif self.intra.get() == 1:
                     if qstart < min([rstart, rstop]):
-                        self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
+                        if self.onlyedge.get() == 1:
+                            if (qstart <= self.maxedge.get() or qstop >= self.contigDict[query].length - self.maxedge.get()) and \
+                              (rstart <= self.maxedge.get() or rstop <= self.maxedge.get() or
+                              rstart >= self.contigDict[subject].length - self.maxedge.get() or
+                              rstop >= self.contigDict[subject].length - self.maxedge.get()):
+                                self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
+                        else:
+                            self.selfhit.append((query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore))
+
         blastfile.close()
         self.queue.put(str(len(self.selfhit)) + ' hits found.')
 
@@ -2442,7 +2619,7 @@ class App:
                 endy = rcoords[1] + self.contigheight / 2
                 self.canvas.create_polygon(startx1, starty, startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,
                                            endx1, endy, endx2, endy, endx2, endy, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2,
-                                           startx2, starty, startx2, starty, smooth=1, fill=colour, outline='black', tags=('c' + query + 'ss', 'c' + subject + 'se', 'selfhit'))
+                                           startx2, starty, startx2, starty, smooth=1, fill=colour, outline='black', tags=('c' + query + 'ss', 'c' + subject + 'se', 'selfhit', str(hitnum)))
         self.canvas.tag_raise('arc')
         self.canvas.tag_raise('text')
         self.blast_options.destroy()
@@ -2568,7 +2745,9 @@ class App:
     
     def drawRefHits(self):
         self.hitlist.sort(key=lambda x: x[3], reverse=True)
+        hitcount = 0
         for i in self.hitlist:
+            hitcount += 1
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
             if query in self.visible:
                 if rstart < rstop:
@@ -2579,7 +2758,7 @@ class App:
                                            self.refpos[subject] + rstop / self.scaledown.get(), self.refline + self.contigheight,
                                             self.contigDict[query].xpos + qstop/self.contigDict[query].scaledown, self.contigline,
                                              self.contigDict[query].xpos + qstart/self.contigDict[query].scaledown, self.contigline,
-                                             fill=colour, outline="black", tags=('c' + query + 'b', 'r' + subject + 'b', 'blast'))
+                                             fill=colour, outline="black", tags=('c' + query + 'b', 'r' + subject + 'b', 'blast', str(hitcount)))
         for i in self.reforder:
             if self.leftmost is None or self.refpos[i] < self.leftmost:
                 self.leftmost = self.refpos[i]
