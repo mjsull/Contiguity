@@ -21,18 +21,21 @@ transtab = string.maketrans('atcgATCG', 'tagcTAGC')
 
 
 class contig:
-    def __init__(self, name, shortname, sequence):
+    def __init__(self, name, shortname, sequence, revseq=None):
         self.name = name
         self.shortname = shortname
         self.forseq = sequence.lower()
-        tempseq = self.forseq[::-1]
-        self.revseq = tempseq.translate(transtab)
+        if revseq == None:
+            tempseq = self.forseq[::-1]
+            self.revseq = tempseq.translate(transtab)
+        else:
+            self.revseq = revseq
         self.length = len(sequence)
         self.xlength = None
         if self.length >= 1000000000:
-            self.strlen = str(self.length / 1000000000) + 'Gb'
+            self.strlen = str(round(self.length * 1.0 / 1000000000, 2)) + 'Gb'
         elif self.length >= 1000000:
-            self.strlen = str(self.length / 1000000) + 'Mb'
+            self.strlen = str(round(self.length * 1.0 / 1000000, 2)) + 'Mb'
         elif self.length >= 1000:
             self.strlen = str(self.length / 1000) + 'Kb'
         else:
@@ -101,7 +104,7 @@ class App:
         self.menubar.add_cascade(label="Selected", menu=self.graphmenu)
         self.currxscroll = 1000000
         self.curryscroll = 1000000
-        self.fontsize=12
+        self.fontsize = 12
         self.customFont = tkFont.Font(family="Helvetica", size=self.fontsize)
         master.config(menu=self.menubar)
         self.panes = PanedWindow(root, orient=VERTICAL, sashrelief=SUNKEN, sashpad=5)
@@ -500,10 +503,10 @@ class App:
             self.lengthlist.yview_scroll(-1, 'units')
 
         return "break"
-    
+
     def setselectedcontig(self, event):
         pass
-    
+
     def doublecontig(self, event):
         x = self.namelist.nearest(event.y)
         self.goto(self.namelist.get(x))
@@ -511,7 +514,7 @@ class App:
 
     def beginDrag(self, event):
         self.canvas.scan_mark(event.x, event.y)  # initial middle-mouse click
-         
+
     def dragCanvas(self, event):
         self.canvas.scan_dragto(event.x, event.y, 1) # capture dragging
 
@@ -855,10 +858,15 @@ class App:
                     self.contigDict[i[0]].xpos = startx - 10 - self.contigDict[i[0]].xlength
                     self.add_contig(i[0])
                     starty += 35
-    
+
     def find_contig(self):
         contig = tkSimpleDialog.askstring('Find Contig', 'Contig name')
         if contig != None:
+            if not contig in self.contigDict:
+                for i in self.contigDict:
+                    if self.contigDict[i].shortname == contig:
+                        contig = i
+                        break
             self.goto(contig)
 
     def goto(self, contig):
@@ -1006,13 +1014,13 @@ class App:
 
     def scrollleft(self, event):
         self.canvas.xview_scroll(-2, 'units')
-    
+
     def scrollright(self, event):
         self.canvas.xview_scroll(2, 'units')
-    
+
     def scrollup(self, event):
         self.canvas.yview_scroll(-2, 'units')
-    
+
     def scrolldown(self, event):
         self.canvas.yview_scroll(2, 'units')
 
@@ -1097,7 +1105,7 @@ class App:
 
     def load_assembly(self):
         filename = tkFileDialog.askopenfilename()
-        if filename == '':
+        if filename == '' or filename == ():
             return
         self.clear_all()
         self.csagfile.set(filename)
@@ -1113,13 +1121,56 @@ class App:
         elif what.split()[0] == 'NODE':
             self.load_csag()
             self.update_console('CSAG loaded.')
-        elif len(what.split()) == '4' and what.split()[0].isdigit() and what.split()[1].isdigit()\
+        elif len(what.split()) == 4 and what.split()[0].isdigit() and what.split()[1].isdigit()\
             and what.split()[2].isdigit() and what.split()[3].isdigit():
             self.load_lastgraph()
             self.update_console('LastGraph loaded.')
         else:
             tkMessageBox.showerror('Invalid format', 'Contiguity cannot recognise file type.')
         self.writeWorkCont()
+
+    def load_lastgraph(self):
+        lg = open(self.csagfile.get())
+        getseq = 0
+        for line in lg:
+            if line.startswith('NODE'):
+                name = line.split()[1]
+                getseq = 1
+            elif getseq == 1:
+                forseq = line.rstrip()
+                getseq = 2
+            elif getseq == 2:
+                revseq = line.rstrip()
+                aninstance = contig(name, name, forseq, revseq)
+                self.contigDict[name] = aninstance
+                getseq = 0
+            elif line.startswith('ARC'):
+                nodea, nodeb = line.split()[1:3]
+                if nodea[0] == '-':
+                    nodea = nodea[1:]
+                    dira = False
+                else:
+                    dira = True
+                if nodeb[0] == '-':
+                    nodeb = nodeb[1:]
+                    dirb = False
+                else:
+                    dirb = True
+                self.edgelist.append((nodea, dira, nodeb, dirb, 0))
+        for i in self.edgelist:
+            contiga, dira, contigb, dirb, overlap = i
+            if dira and dirb:
+                self.contigDict[contiga].to.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, False, overlap))
+            elif dira and not dirb:
+                self.contigDict[contiga].to.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, False, overlap))
+            elif not dira and dirb:
+                self.contigDict[contiga].fr.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, True, overlap))
+            else:
+                self.contigDict[contiga].fr.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, True, overlap))
 
 
     def load_fasta(self):
@@ -1128,7 +1179,7 @@ class App:
         maxlen = 0
         for line in fastafile:
             if line.startswith('>'):
-                namelist.append(line.rstrip())
+                namelist.append(line.split()[0])
                 if maxlen < len(namelist[-1]):
                     maxlen = len(namelist[-1])
         for i in range(maxlen):
@@ -1158,8 +1209,33 @@ class App:
         fastafile.close()
         fastafile = open(self.contigfile.get())
         first = True
+        getgraph = 0
         for line in fastafile:
-            if line.startswith('>'):
+            if line.startswith('digraph adj {'):
+                getgraph = 1
+            elif getgraph == 1:
+                getgraph = 2
+            elif getgraph == 2:
+                getgraph =3
+            elif getgraph == 3:
+                if line.startswith('}'):
+                    getgraph = 0
+                else:
+                    if len(line.split('"')) > 3:
+                        nodea = line.split('"')[1]
+                        nodeb = line.split('"')[3]
+                        if nodea[-1] == '-':
+                            dira = False
+                        else:
+                            dira = True
+                        nodea = nodea[:-1]
+                        if nodeb[-1] == '-':
+                            dirb = False
+                        else:
+                            dirb = True
+                        nodeb = nodeb[:-1]
+                        self.edgelist.append((nodea, dira, nodeb, dirb, 0))
+            elif line.startswith('>'):
                 if first:
                     first = False
                 else:
@@ -1169,7 +1245,7 @@ class App:
                 if entry.startswith('NODE_'):
                     name = entry.split('_')[1]
                 else:
-                    name = line.rstrip()[cuta:cutb]
+                    name = line.split()[0][cuta:cutb]
                     if name == '':
                         name = entry
                 seq = ''
@@ -1178,6 +1254,20 @@ class App:
         aninstance = contig(entry, name, seq)
         self.contigDict[entry] = aninstance
         fastafile.close()
+        for i in self.edgelist:
+            contiga, dira, contigb, dirb, overlap = i
+            if dira and dirb:
+                self.contigDict[contiga].to.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, False, overlap))
+            elif dira and not dirb:
+                self.contigDict[contiga].to.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, False, overlap))
+            elif not dira and dirb:
+                self.contigDict[contiga].fr.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, True, overlap))
+            else:
+                self.contigDict[contiga].fr.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, True, overlap))
 
     def load_csag(self):
         csag = open(self.csagfile.get())
@@ -1188,6 +1278,8 @@ class App:
                 self.contigDict[entry] = aninstance
             elif line.split()[0] == 'EDGE':
                 title, n1, d1, n2, d2, overlap = line.split()
+                if overlap == '.':
+                    overlap = ''
                 if d1 == 'True':
                     d1 = True
                 else:
@@ -1231,13 +1323,13 @@ class App:
         if filename == '':
             return
         self.blastfile.set(filename)
-        
+
     def loadcontig(self):
         filename = tkFileDialog.askopenfilename(parent=self.create_edges_top)
         if filename == '':
             return
         self.contigfile.set(filename)
-        
+
     def loadview(self):
         filename = tkFileDialog.askopenfilename(parent=self.view_options)
         if filename == '':
@@ -1449,7 +1541,7 @@ class App:
             self.read_nmer_freq()
             if self.aborttime():
                 return
-            if self.cutauto == 1:
+            if self.cutauto.get() == 1:
                 self.getnmercut()
                 if self.aborttime():
                     return
@@ -1698,13 +1790,13 @@ class App:
                         if k[1]:
                             self.edgelist.append((i, False, k[0], True, appendpath))
                         else:
-                            self.edgelist.append((i, False, k[0], False, appendpath))    
+                            self.edgelist.append((i, False, k[0], False, appendpath))
         del self.nmerdict
         return False
 
     def getflag(self, n, count=11):
         return "".join([str((int(n) >> y) & 1) for y in range(count-1, -1, -1)])
-    
+
     def get_paired_edge(self):
         minoverlap = self.minoverlap.get()
         tempread = open(self.readfile.get())
@@ -1974,7 +2066,7 @@ class App:
                             self.edgelist.append((i[1:], True, j[1:], False, 'nnnnnnnnn'))
 
     def get_nmer_freq(self):
-        nmersize, nmercut, reads  = self.nmersize.get(), self.nmercut.get(), self.readfile.get()
+        nmersize, reads  = self.nmersize.get(), self.readfile.get()
         nucl = set('atcg')
         self.nmerdict = {}
         if reads[-3:] == '.gz':
@@ -2126,7 +2218,7 @@ class App:
                                 todo.append(currpath + [k])
                         else:
                             for k in edgeDict[currpath[-1][0]][1]:
-                                todo.append(currpath + [k])                         
+                                todo.append(currpath + [k])
         pathseqlist = []
         temppaths = []
         for i in paths:
@@ -2254,7 +2346,7 @@ class App:
                     else:
                         lenb = - len(newedgelist[(i[2], not i[3], i[0], not i[1])])
                 if lena > lenb:
-                    newedgelist[(i[2], not i[3], i[0], not i[1])] = i[4]            
+                    newedgelist[(i[2], not i[3], i[0], not i[1])] = i[4]
             else:
                 newedgelist[i[:4]] = i[4]
         self.edgelist = []
@@ -2266,7 +2358,11 @@ class App:
         for i in self.contigDict:
             out.write('NODE\t' + i + '\t' + self.contigDict[i].shortname + '\t' + self.contigDict[i].forseq + '\n')
         for i in self.edgelist:
-            out.write('EDGE\t' + str(i[0]) + '\t' + str(i[1]) + '\t' + str(i[2]) + '\t' + str(i[3]) + '\t' + str(i[4]) + '\n')
+            if i[4] == '':
+                overlap = '.'
+            else:
+                overlap = str(i[4])
+            out.write('EDGE\t' + str(i[0]) + '\t' + str(i[1]) + '\t' + str(i[2]) + '\t' + str(i[3]) + '\t' + overlap + '\n')
         out.close()
 
     def create_comp(self):
@@ -2334,10 +2430,19 @@ class App:
             return
         if self.blastfile.get() == '':
             self.blastit = tkMessageBox.askquestion('No blast files.', 'Create BLAST output?')
+            if self.blastit == 'yes':
+                if not which('blastn') or not which('makeblastdb'):
+                    tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST to your path, or perform the comparison yourself.')
+                    return
+            else:
+                tkMessageBox.showerror('No Comparison', 'Please choose valid comparison file.')
+                return
         else:
             if not os.path.exists(self.blastfile.get()):
                 tkMessageBox.showerror('No Comparison', 'Please choose valid comparison file.')
                 return
+            else:
+                self.blastit = 'no'
         self.blast_options.destroy()
         try:
             if self.thethread.is_alive():
@@ -2394,9 +2499,6 @@ class App:
         self.reforder.append(name)
         if self.blastit == 'yes':
             self.queue.put('Running BLAST.')
-            if not which('blastn') or not which('makeblastdb'):
-                tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST to your path, or perform the comparison yourself.')
-                return
             subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/tempdb -in ' + self.reffile.get(), stdout=subprocess.PIPE, shell=True).wait()
             subprocess.Popen('blastn -task blastn -db ' + self.workingDir.get() + '/tempdb -outfmt 6 -query ' + self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/query_tempdb.out', shell=True).wait()
             self.blastfile.set(self.workingDir.get() + '/query_tempdb.out')
@@ -2485,6 +2587,8 @@ class App:
             if not which('blastn') or not which('makeblastdb'):
                 tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST or include own comparison file.')
                 return
+        if self.visible == set():
+            tkMessageBox.showerror('No contigs visible.', 'Please add contigs to compare to main canvas.')
         self.canvas.delete('selfhit')
         self.queue = Queue.Queue()
         self.thethread = threading.Thread(target=self.self_hits_thread)
@@ -2635,7 +2739,7 @@ class App:
         self.view_options.title('View contig graph')
         self.viewlabel = Label(self.frame3, text='Contigs to view:', anchor=E)
         self.viewlabel.grid(column=0, row=0, sticky=E)
-        self.viewentry = OptionMenu(self.frame3, self.view, 'All', 'BLAST', 'List')#, 'Coverage', 'BLAST and Coverage', 'Blast or Coverage')
+        self.viewentry = OptionMenu(self.frame3, self.view, 'All', 'BLAST', 'List', 'Filter')#, 'Coverage', 'BLAST and Coverage', 'Blast or Coverage')
         self.viewentry.grid(column=1, row=0, columnspan=2, sticky=EW)
         self.viewlistlabel = Label(self.frame3, text='List of contigs:', anchor=E)
         self.viewlistlabel.grid(column=0, row=1, sticky=E)
@@ -2706,11 +2810,19 @@ class App:
             if self.viewref.get() and not self.hitlist is None and not self.reforder is None:
                 self.orderContigsAllBlast()
             else:
-                self.orderContigsAll()
+                self.orderContigsVisible()
             self.drawContigs()
             self.drawEdges()
         elif self.view.get() == 'List':
             self.orderContigsList()
+            self.drawContigs()
+            self.drawEdges()
+        elif self.view.get() == 'Filter':
+            if self.hitlist is None:
+                tkMessageBox.showerror('Comparison not found.', 'Please perform comparison before choosing this method.')
+                return
+            self.filterBlast()
+            self.orderContigsVisible()
             self.drawContigs()
             self.drawEdges()
         if self.viewref.get() and not self.hitlist is None and not self.reforder is None:
@@ -2742,7 +2854,13 @@ class App:
         for i in self.hitlist:
             outset.add(i[0])
         return outset
-    
+
+    def filterBlast(self):
+        self.visible = set(self.contigDict)
+        for i in self.hitlist:
+            if i[0] in self.visible:
+                self.visible.remove(i[0])
+
     def drawRefHits(self):
         self.hitlist.sort(key=lambda x: x[3], reverse=True)
         hitcount = 0
@@ -2813,8 +2931,8 @@ class App:
             curr += self.contigDict[name].xlength + 10
         listfile.close()
 
-    def orderContigsAll(self):
-        todo = set(self.contigDict)
+    def orderContigsVisible(self):
+        todo = set(self.visible)
         listoflists = []
         while len(todo) != 0:
             longest = None
@@ -3307,7 +3425,6 @@ class App:
         out.close()
         self.update_console('File written.')
 
-        
 root = Tk()
 root.title('Contiguity')
 root.option_add('*Font', 'Heveltica 10')
