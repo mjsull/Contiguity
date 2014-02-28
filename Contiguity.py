@@ -16,9 +16,19 @@ import subprocess
 import string
 import threading
 import Queue
+import argparse
 
 transtab = string.maketrans('atcgATCG', 'tagcTAGC')
 
+class dummyVar:
+    def __init__(self, theval):
+        self.theval = theval
+    def get(self):
+        return self.theval
+    def set(self, theval):
+        self.theval = theval
+    def put(self, theval):
+        self.theval = theval
 
 class contig:
     def __init__(self, name, shortname, sequence, revseq=None):
@@ -69,206 +79,250 @@ def which(program):
 
 class App:
     def __init__(self, master):
-        self.menubar = Menu(master)
-        self.filemenu = Menu(self.menubar, tearoff=0)
-        self.filemenu.add_command(label="Create CSAG file", command=self.create_edges)
-        self.filemenu.add_command(label="Create comparison", command=self.create_comp)
-        self.filemenu.add_separator()
-        self.filemenu.add_command(label="Load assembly", command=self.load_assembly)
-        self.filemenu.add_separator()
-        self.filemenu.add_command(label="Change working directory", command=self.loadwork)
-        self.filemenu.add_command(label="Cancel running process", command=self.cancelprocess)
-        self.filemenu.add_separator()
-        self.filemenu.add_command(label="Exit", command=self.quit)
-        self.menubar.add_cascade(label="File", menu=self.filemenu)
-        self.viewmenu = Menu(self.menubar, tearoff=0)
-        self.viewmenu.add_command(label="View assembly", command=self.view_options)
-        self.viewmenu.add_command(label="Self comparison", command=self.self_compare)
-        self.viewmenu.add_command(label="Add contig", command=self.add_contig_dialogue)
-        self.viewmenu.add_separator()
-        self.viewmenu.add_command(label="Find contig", command=self.find_contig)
-        self.viewmenu.add_separator()
-        self.viewmenu.add_command(label="Zoom in", command=self.zoominmenu)
-        self.viewmenu.add_command(label="Zoom out", command=self.zoomoutmenu)
-        self.viewmenu.add_separator()
-        self.viewmenu.add_command(label="Shrink", command=self.shrink)
-        self.viewmenu.add_command(label="Stretch", command=self.stretch)
-        self.menubar.add_cascade(label="View", menu=self.viewmenu)
-        self.graphmenu = Menu(self.menubar, tearoff=0)
-        self.graphmenu.add_command(label="Select all", command=self.select_all)
-        self.graphmenu.add_command(label="Clear selected", command=self.clear_lists)
-        self.graphmenu.add_separator()
-        self.graphmenu.add_command(label="Find paths", command=self.findPaths)
-        self.graphmenu.add_command(label="Write fasta", command=self.writeFasta)
-        self.graphmenu.add_command(label="Write multifasta", command=self.writeMultiFasta)
-        self.menubar.add_cascade(label="Selected", menu=self.graphmenu)
-        self.currxscroll = 1000000
-        self.curryscroll = 1000000
-        self.fontsize = 12
-        self.customFont = tkFont.Font(family="Helvetica", size=self.fontsize)
-        master.config(menu=self.menubar)
-        self.panes = PanedWindow(root, orient=VERTICAL, sashrelief=SUNKEN, sashpad=5)
-        self.panes.pack(fill=BOTH, expand=1)
-        self.mainframe = Frame(self.panes)
-        self.mainframe.grid_rowconfigure(0, weight=1)
-        self.mainframe.grid_columnconfigure(0, weight=1)
-        xscrollbar = Scrollbar(self.mainframe, orient=HORIZONTAL)
-        xscrollbar.grid(row=1, column=0, sticky=E+W)
-        yscrollbar = Scrollbar(self.mainframe)
-        yscrollbar.grid(row=0, column=1, sticky=N+S)
-        self.canvas = Canvas(self.mainframe, bd=0, bg='#FFFAF0', scrollregion=(0, 0, self.currxscroll, self.curryscroll),
-                        xscrollcommand=xscrollbar.set,
-                        yscrollcommand=yscrollbar.set)
-        self.canvas.grid(row=0, column=0, sticky=N+S+E+W)
-        xscrollbar.config(command=self.canvas.xview)
-        yscrollbar.config(command=self.canvas.yview)
-        self.panes.add(self.mainframe, sticky=N+S+E+W, minsize=30, width=500, height=400)
-        self.utility = PanedWindow(self.panes)
-        self.panes.add(self.utility, minsize=50)
-        self.consoletext = StringVar(value='')
-        self.console = Label(self.utility, bg='#FFFF99', relief=SUNKEN, textvariable=self.consoletext, anchor=SW, justify=LEFT)
-        self.utility.add(self.console, sticky=NSEW, height=30, width=180, minsize=100)
-        self.contiglist = Frame(self.utility)
-        self.utility.add(self.contiglist, sticky=NSEW, minsize=120)
-        self.dirframe = Frame(self.utility)
-        self.utility.add(self.dirframe, sticky=NSEW, minsize=70)
-        self.lengthframe = Frame(self.utility)
-        self.utility.add(self.lengthframe, sticky=NSEW, minsize=70)
-        self.contiglist.grid_rowconfigure(1, weight=1, minsize=30)
-        self.contiglist.grid_columnconfigure(0, weight=1)
-        self.dirframe.grid_rowconfigure(1, weight=1, minsize=30)
-        self.dirframe.grid_columnconfigure(0, weight=1)
-        self.lengthframe.grid_rowconfigure(1, weight=1, minsize=30)
-        self.lengthframe.grid_columnconfigure(0, weight=1)
-        self.clscroll = Scrollbar(self.lengthframe, orient=VERTICAL)
-        self.namelabel = Label(self.contiglist, text='Contig name', bg='#FFFFFF',  relief=SUNKEN)
-        self.namelabel.grid(row=0, column=0, sticky=EW)
-        self.namelist = Listbox(self.contiglist, yscrollcommand=self.clscroll.set, exportselection=0, width=30, height=5)
-        self.namelist.bind('<Button-1>', self.setselectedcontig)
-        self.namelist.bind('<Double-Button-1>', self.doublecontig)
-        self.namelist.bind('<MouseWheel>', self.onmousewheel)
-        self.namelist.bind('<Button-4>', self.onmousewheel)
-        self.namelist.bind('<Button-5>', self.onmousewheel)
-        self.namelist.grid(row=1, column=0, sticky=NSEW)
-        self.dirlabel = Label(self.dirframe, bg='#FFFFFF', text='Strand', relief=SUNKEN)
-        self.dirlabel.grid(row=0, column=0, sticky=NSEW)
-        self.dirlist = Listbox(self.dirframe, yscrollcommand=self.clscroll.set, exportselection=0, width=7, height=5)
-        self.dirlist.bind('<Button-1>', self.setselectedcontig)
-        self.dirlist.bind('<Double-Button-1>', self.doublecontig)
-        self.dirlist.bind('<MouseWheel>', self.onmousewheel)
-        self.dirlist.bind('<Button-4>', self.onmousewheel)
-        self.dirlist.bind('<Button-5>', self.onmousewheel)
-        self.dirlist.grid(row=1, column=0, sticky=NSEW)
-        self.lengthlabel = Label(self.lengthframe, text='Length', bg='#FFFFFF',  relief=SUNKEN)
-        self.lengthlabel.grid(row=0, column=0, sticky=EW)
-        self.lengthlist = Listbox(self.lengthframe, yscrollcommand=self.clscroll.set, exportselection=0, width=7, height=5)
-        self.lengthlist.bind('<Button-1>', self.setselectedcontig)
-        self.lengthlist.bind('<Double-Button-1>', self.doublecontig)
-        self.lengthlist.bind('<MouseWheel>', self.onmousewheel)
-        self.lengthlist.bind('<Button-4>', self.onmousewheel)
-        self.lengthlist.bind('<Button-5>', self.onmousewheel)
-        self.lengthlist.grid(row=1, column=0, sticky=NSEW)
-        self.clscroll = Scrollbar(self.lengthframe, orient=VERTICAL)
-        self.clscroll.config(command=self.yview)
-        self.clscroll.grid(row=1, column=1, sticky=NS)
-        master.geometry('+10+20')
-        root.minsize(600, 400)
-        self.canvas.tag_bind('map', '<B1-Motion>', self.dragMove)
-        self.canvas.tag_bind('map', '<Button-1>', self.recordMark)
-        self.canvas.tag_bind('map', '<Double-Button-1>', self.addtolist)
-        self.canvas.tag_bind('blast', '<Double-Button-1>', self.showhitblast)
-        self.canvas.tag_bind('selfhit', '<Double-Button-1>', self.showhitsblast)
-        self.rcmenu = Menu(root, tearoff=0)
-        self.rcmenu.add_command(label="Reverse", command=self.reverse_contig)
-        self.rcmenu.add_command(label="Remove", command=self.remove_contig)
-        self.rcmenu.add_command(label="Duplicate", command=self.duplicate_contig)
-        self.rcmenu.add_separator()
-        self.rcmenu.add_command(label="Show to", command=self.show_to)
-        self.rcmenu.add_command(label="Show from", command=self.show_from)
-        self.canvas.tag_bind('map', '<Button-3>', self.rightClick)
-        self.canvas.bind('<Button-2>', self.beginDrag)
-        self.canvas.bind('<B2-Motion>', self.dragCanvas)
-        root.bind('w', self.zoomin)
-        root.bind('s', self.zoomout)
-        root.bind('a', self.shrink)
-        root.bind('d', self.stretch)
-        root.bind('<Left>', self.scrollleft)
-        root.bind('<Right>', self.scrollright)
-        root.bind('<Up>', self.scrollup)
-        root.bind('<Down>', self.scrolldown)
-        self.canvas.bind('<Button-5>', self.zoomout)
-        self.canvas.bind('<Button-4>', self.zoomin)
-        self.canvas.bind('<MouseWheel>', self.zoomcanvas)
-        self.canvas.bind('<Button-1>', self.removerc)
-        self.csagfile = StringVar(value='')
-        self.selfcomparefile = StringVar(value='')
-        self.outfile = StringVar(value='')
-        self.buffer = StringVar(value='nnnnnnnnnn')
-        self.reffile = StringVar(value='')
-        self.blastfile = StringVar(value='')
-        self.contigfile = StringVar(value='')
-        self.csag = StringVar(value='')
-        self.readfile = StringVar(value='')
-        self.workingDir = StringVar(value='.contiguity_wd')
-        if os.path.exists(self.workingDir.get()):
-            if not os.path.isdir(self.workingDir.get()):
-                tkMessageBox.showerror('Error', 'File not folder selected.')
-                sys.exit()
+        if not master is None:
+            self.menubar = Menu(master)
+            self.filemenu = Menu(self.menubar, tearoff=0)
+            self.filemenu.add_command(label="Create CSAG file", command=self.create_edges)
+            self.filemenu.add_command(label="Create comparison", command=self.create_comp)
+            self.filemenu.add_separator()
+            self.filemenu.add_command(label="Load assembly", command=self.load_assembly)
+            self.filemenu.add_separator()
+            self.filemenu.add_command(label="Change working directory", command=self.loadwork)
+            self.filemenu.add_command(label="Cancel running process", command=self.cancelprocess)
+            self.filemenu.add_separator()
+            self.filemenu.add_command(label="Exit", command=self.quit)
+            self.menubar.add_cascade(label="File", menu=self.filemenu)
+            self.viewmenu = Menu(self.menubar, tearoff=0)
+            self.viewmenu.add_command(label="View assembly", command=self.view_options)
+            self.viewmenu.add_command(label="Self comparison", command=self.self_compare)
+            self.viewmenu.add_command(label="Add contig", command=self.add_contig_dialogue)
+            self.viewmenu.add_separator()
+            self.viewmenu.add_command(label="Find contig", command=self.find_contig)
+            self.viewmenu.add_separator()
+            self.viewmenu.add_command(label="Zoom in", command=self.zoominmenu)
+            self.viewmenu.add_command(label="Zoom out", command=self.zoomoutmenu)
+            self.viewmenu.add_separator()
+            self.viewmenu.add_command(label="Shrink", command=self.shrink)
+            self.viewmenu.add_command(label="Stretch", command=self.stretch)
+            self.menubar.add_cascade(label="View", menu=self.viewmenu)
+            self.graphmenu = Menu(self.menubar, tearoff=0)
+            self.graphmenu.add_command(label="Select all", command=self.select_all)
+            self.graphmenu.add_command(label="Clear selected", command=self.clear_lists)
+            self.graphmenu.add_separator()
+            self.graphmenu.add_command(label="Find paths", command=self.findPaths)
+            self.graphmenu.add_command(label="Write fasta", command=self.writeFasta)
+            self.graphmenu.add_command(label="Write multifasta", command=self.writeMultiFasta)
+            self.menubar.add_cascade(label="Selected", menu=self.graphmenu)
+            self.currxscroll = 1000000
+            self.curryscroll = 1000000
+            self.fontsize = 12
+            self.customFont = tkFont.Font(family="Helvetica", size=self.fontsize)
+            master.config(menu=self.menubar)
+            self.panes = PanedWindow(root, orient=VERTICAL, sashrelief=SUNKEN, sashpad=5)
+            self.panes.pack(fill=BOTH, expand=1)
+            self.mainframe = Frame(self.panes)
+            self.mainframe.grid_rowconfigure(0, weight=1)
+            self.mainframe.grid_columnconfigure(0, weight=1)
+            xscrollbar = Scrollbar(self.mainframe, orient=HORIZONTAL)
+            xscrollbar.grid(row=1, column=0, sticky=E+W)
+            yscrollbar = Scrollbar(self.mainframe)
+            yscrollbar.grid(row=0, column=1, sticky=N+S)
+            self.canvas = Canvas(self.mainframe, bd=0, bg='#FFFAF0', scrollregion=(0, 0, self.currxscroll, self.curryscroll),
+                            xscrollcommand=xscrollbar.set,
+                            yscrollcommand=yscrollbar.set)
+            self.canvas.grid(row=0, column=0, sticky=N+S+E+W)
+            xscrollbar.config(command=self.canvas.xview)
+            yscrollbar.config(command=self.canvas.yview)
+            self.panes.add(self.mainframe, sticky=N+S+E+W, minsize=30, width=500, height=400)
+            self.utility = PanedWindow(self.panes)
+            self.panes.add(self.utility, minsize=50)
+            self.consoletext = StringVar(value='')
+            self.console = Label(self.utility, bg='#FFFF99', relief=SUNKEN, textvariable=self.consoletext, anchor=SW, justify=LEFT)
+            self.utility.add(self.console, sticky=NSEW, height=30, width=180, minsize=100)
+            self.contiglist = Frame(self.utility)
+            self.utility.add(self.contiglist, sticky=NSEW, minsize=120)
+            self.dirframe = Frame(self.utility)
+            self.utility.add(self.dirframe, sticky=NSEW, minsize=70)
+            self.lengthframe = Frame(self.utility)
+            self.utility.add(self.lengthframe, sticky=NSEW, minsize=70)
+            self.contiglist.grid_rowconfigure(1, weight=1, minsize=30)
+            self.contiglist.grid_columnconfigure(0, weight=1)
+            self.dirframe.grid_rowconfigure(1, weight=1, minsize=30)
+            self.dirframe.grid_columnconfigure(0, weight=1)
+            self.lengthframe.grid_rowconfigure(1, weight=1, minsize=30)
+            self.lengthframe.grid_columnconfigure(0, weight=1)
+            self.clscroll = Scrollbar(self.lengthframe, orient=VERTICAL)
+            self.namelabel = Label(self.contiglist, text='Contig name', bg='#FFFFFF',  relief=SUNKEN)
+            self.namelabel.grid(row=0, column=0, sticky=EW)
+            self.namelist = Listbox(self.contiglist, yscrollcommand=self.clscroll.set, exportselection=0, width=30, height=5)
+            self.namelist.bind('<Button-1>', self.setselectedcontig)
+            self.namelist.bind('<Double-Button-1>', self.doublecontig)
+            self.namelist.bind('<MouseWheel>', self.onmousewheel)
+            self.namelist.bind('<Button-4>', self.onmousewheel)
+            self.namelist.bind('<Button-5>', self.onmousewheel)
+            self.namelist.grid(row=1, column=0, sticky=NSEW)
+            self.dirlabel = Label(self.dirframe, bg='#FFFFFF', text='Strand', relief=SUNKEN)
+            self.dirlabel.grid(row=0, column=0, sticky=NSEW)
+            self.dirlist = Listbox(self.dirframe, yscrollcommand=self.clscroll.set, exportselection=0, width=7, height=5)
+            self.dirlist.bind('<Button-1>', self.setselectedcontig)
+            self.dirlist.bind('<Double-Button-1>', self.doublecontig)
+            self.dirlist.bind('<MouseWheel>', self.onmousewheel)
+            self.dirlist.bind('<Button-4>', self.onmousewheel)
+            self.dirlist.bind('<Button-5>', self.onmousewheel)
+            self.dirlist.grid(row=1, column=0, sticky=NSEW)
+            self.lengthlabel = Label(self.lengthframe, text='Length', bg='#FFFFFF',  relief=SUNKEN)
+            self.lengthlabel.grid(row=0, column=0, sticky=EW)
+            self.lengthlist = Listbox(self.lengthframe, yscrollcommand=self.clscroll.set, exportselection=0, width=7, height=5)
+            self.lengthlist.bind('<Button-1>', self.setselectedcontig)
+            self.lengthlist.bind('<Double-Button-1>', self.doublecontig)
+            self.lengthlist.bind('<MouseWheel>', self.onmousewheel)
+            self.lengthlist.bind('<Button-4>', self.onmousewheel)
+            self.lengthlist.bind('<Button-5>', self.onmousewheel)
+            self.lengthlist.grid(row=1, column=0, sticky=NSEW)
+            self.clscroll = Scrollbar(self.lengthframe, orient=VERTICAL)
+            self.clscroll.config(command=self.yview)
+            self.clscroll.grid(row=1, column=1, sticky=NS)
+            master.geometry('+10+20')
+            root.minsize(600, 400)
+            self.canvas.tag_bind('map', '<B1-Motion>', self.dragMove)
+            self.canvas.tag_bind('map', '<Button-1>', self.recordMark)
+            self.canvas.tag_bind('map', '<Double-Button-1>', self.addtolist)
+            self.canvas.tag_bind('blast', '<Double-Button-1>', self.showhitblast)
+            self.canvas.tag_bind('selfhit', '<Double-Button-1>', self.showhitsblast)
+            self.rcmenu = Menu(root, tearoff=0)
+            self.rcmenu.add_command(label="Reverse", command=self.reverse_contig)
+            self.rcmenu.add_command(label="Remove", command=self.remove_contig)
+            self.rcmenu.add_command(label="Duplicate", command=self.duplicate_contig)
+            self.rcmenu.add_separator()
+            self.rcmenu.add_command(label="Show to", command=self.show_to)
+            self.rcmenu.add_command(label="Show from", command=self.show_from)
+            self.canvas.tag_bind('map', '<Button-3>', self.rightClick)
+            self.canvas.bind('<Button-2>', self.beginDrag)
+            self.canvas.bind('<B2-Motion>', self.dragCanvas)
+            root.bind('w', self.zoomin)
+            root.bind('s', self.zoomout)
+            root.bind('a', self.shrink)
+            root.bind('d', self.stretch)
+            root.bind('<Left>', self.scrollleft)
+            root.bind('<Right>', self.scrollright)
+            root.bind('<Up>', self.scrollup)
+            root.bind('<Down>', self.scrolldown)
+            self.canvas.bind('<Button-5>', self.zoomout)
+            self.canvas.bind('<Button-4>', self.zoomin)
+            self.canvas.bind('<MouseWheel>', self.zoomcanvas)
+            self.canvas.bind('<Button-1>', self.removerc)
+            self.csagfile = StringVar(value='')
+            self.selfcomparefile = StringVar(value='')
+            self.outfile = StringVar(value='')
+            self.buffer = StringVar(value='nnnnnnnnnn')
+            self.reffile = StringVar(value='')
+            self.blastfile = StringVar(value='')
+            self.maxdist = IntVar(value=300)
+            self.nmercut = IntVar(value=4)
+            self.nmerave = IntVar(value=10)
+            self.nmersize = IntVar(value=31)
+            self.minoverlap = IntVar(value=30)
+            self.contigfile = StringVar(value='')
+            self.readfile = StringVar(value='')
+            self.workingDir = StringVar(value='.contiguity_wd')
+            if os.path.exists(self.workingDir.get()):
+                if not os.path.isdir(self.workingDir.get()):
+                    tkMessageBox.showerror('Error', 'File not folder selected.')
+                    sys.exit()
+            else:
+                os.makedirs(self.workingDir.get())
+            self.insertsize = IntVar(value=600)
+            self.minrl = IntVar(value=75)
+            self.minpairedge = IntVar(value=5)
+            self.maxmm = IntVar(value=2)
+            self.longoveralpident = IntVar(value=85)
+            self.minlengthblast = IntVar(value=100)
+            self.intra = IntVar(value=0)
+            self.onlyedge = IntVar(value=0)
+            self.maxedge = IntVar(value=10)
+            self.minlengthratio = DoubleVar(value=0.0)
+            self.minident = DoubleVar(value=95.0)
+            self.minbitscore = DoubleVar(value=0)
+            self.maxevalue = DoubleVar(value=0.05)
+            self.getOverlap = IntVar(value=1)
+            self.getdb = IntVar(value=1)
+            self.cutauto = IntVar(value=1)
+            self.getPaired = IntVar(value=1)
+            self.orientation = StringVar(value='--> <--')
+            self.view = StringVar(value='BLAST')
+            self.viewlist = StringVar(value='')
+            self.viewref = IntVar(value=1)
+            self.shorten = StringVar(value='No')
+            self.getLong = IntVar(value=0)
+            self.minlong = IntVar(value=2)
+            self.minlongover = IntVar(value=100)
+            self.minlongident = IntVar(value=90)
+            self.visible = set()
+            self.contigheight = 25
+            self.scaledown = IntVar(value=100)
+            self.maxbp = IntVar(value=5000)
+            self.maxnode = IntVar(value=10)
+            self.maxpath = IntVar(value=1000000)
+            self.onlyshort = IntVar(value=1)
+            self.originalxscroll = self.currxscroll
+            self.originalyscroll = self.curryscroll
+            self.refline = 50
+            self.contigline = self.refline + self.contigheight + 200
+            self.contigDict = {}
+            self.hitlist = None
+            self.leftmost = None
+            self.rightmost = None
+            self.selected = []
+            self.newscaledown = self.scaledown.get()
+            self.reforder = None
+            self.abortqueue = Queue.Queue()
+            self.abortqueue.put(False)
+            self.abort = False
         else:
-            os.makedirs(self.workingDir.get())
-        self.minlength = IntVar(value=100)
-        self.minlengthblast = IntVar(value=100)
-        self.intra = IntVar(value=0)
-        self.onlyedge = IntVar(value=0)
-        self.maxedge = IntVar(value=10)
-        self.minlengthratio = DoubleVar(value=0.0)
-        self.minident = DoubleVar(value=95.0)
-        self.minbitscore = DoubleVar(value=0)
-        self.maxtrim = IntVar(0)
-        self.maxevalue = DoubleVar(value=0.05)
-        self.getOverlap = IntVar(value=1)
-        self.minoverlap = IntVar(value=30)
-        self.maxmm = IntVar(value=2)
-        self.getdb = IntVar(value=1)
-        self.nmersize = IntVar(value=31)
-        self.maxdist = IntVar(value=300)
-        self.cutauto = IntVar(value=1)
-        self.nmercut = IntVar(value=4)
-        self.nmerave = IntVar(value=10)
-        self.getPaired = IntVar(value=1)
-        self.insertsize = IntVar(value=600)
-        self.orientation = StringVar(value='--> <--')
-        self.minrl = IntVar(value=75)
-        self.minpairedge = IntVar(value=5)
-        self.view = StringVar(value='BLAST')
-        self.viewlist = StringVar(value='')
-        self.viewref = IntVar(value=1)
-        self.shorten = StringVar(value='No')
-        self.getLong = IntVar(value=0)
-        self.minlong = IntVar(value=2)
-        self.minlongover = IntVar(value=100)
-        self.minlongident = IntVar(value=90)
-        self.visible = set()
-        self.contigheight = 25
-        self.scaledown = IntVar(value=100)
-        self.maxbp = IntVar(value=5000)
-        self.maxnode = IntVar(value=10)
-        self.maxpath = IntVar(value=1000000)
-        self.onlyshort = IntVar(value=1)
-        self.originalxscroll = self.currxscroll
-        self.originalyscroll = self.curryscroll
-        self.refline = 50
-        self.contigline = self.refline + self.contigheight + 200
-        self.contigDict = {}
-        self.hitlist = None
-        self.leftmost = None
-        self.rightmost = None
-        self.selected = []
-        self.newscaledown = self.scaledown.get()
-        self.reforder = None
-        self.abortqueue = Queue.Queue()
-        self.abortqueue.put(False)
-        self.abort = False
+            if args.no_overlap_edges:
+                self.getOverlap = dummyVar(0)
+            else:
+                self.getOverlap = dummyVar(1)
+            if args.no_db_edges:
+                self.getdb = dummyVar(0)
+            else:
+                self.getdb = dummyVar(1)
+            if args.no_paired_edges:
+                self.getPaired = dummyVar(0)
+            else:
+                self.getPaired = dummyVar(1)
+            self.nmercut = dummyVar(args.nmer_average)
+            self.nmerave = dummyVar(args.nmer_cutoff)
+            self.nmersize = dummyVar(args.nmer_size)
+            self.maxdist = dummyVar(args.max_distance)
+            if args.nmer_cutoff == -1 or args.nmer_average == -1:
+                self.cutauto = dummyVar(1)
+            else:
+                self.cutauto = dummyVar(0)
+            self.contigfile = dummyVar(args.contig_file)
+            self.readfile = dummyVar(args.read_file)
+            self.insertsize = dummyVar(args.max_insert_size)
+            self.minrl = dummyVar(args.min_read_length)
+            self.minpairedge = dummyVar(args.minimum_pairs_edge)
+            self.maxmm = dummyVar(args.max_mismatch)
+            self.longoveralpident = dummyVar(args.long_overlap_ident)
+            self.workingDir = dummyVar(args.output_folder)
+            if args.overlap is None:
+                self.minoverlap = dummyVar(args.nmer_size-1)
+            else:
+                self.minoverlap = dummyVar(args.minoverlap)
+            if os.path.exists(self.workingDir.get()):
+                if not os.path.isdir(self.workingDir.get()):
+                    sys.stderr.write('Output is not a folder.\n')
+                    sys.exit()
+            else:
+                os.makedirs(self.workingDir.get())
+            self.queue = dummyVar('temp')
+            self.abortqueue = Queue.Queue()
+            self.abortqueue.put(False)
+            self.abort = False
+            self.edge_thread()
+
 
     def cancelprocess(self):
         self.abort = True
@@ -1116,8 +1170,9 @@ class App:
         self.edgelist = []
         if what[0] == '>':
             self.contigfile.set(filename)
-            self.load_fasta()
-            self.update_console('FASTA loaded.')
+            gotit = self.load_fasta()
+            if gotit:
+                self.update_console('FASTA loaded.')
         elif what.split()[0] == 'NODE':
             self.load_csag()
             self.update_console('CSAG loaded.')
@@ -1240,7 +1295,11 @@ class App:
                     first = False
                 else:
                     aninstance = contig(entry, name, seq)
-                    self.contigDict[entry] = aninstance
+                    if entry in self.contigDict:
+                        tkMessageBox.showerror('FASTA error', 'Please make sure the section of the FASTA header preceeding the first whitespace is unique.')
+                        return None
+                    else:
+                        self.contigDict[entry] = aninstance
                 entry = line.split()[0][1:]
                 if entry.startswith('NODE_'):
                     name = entry.split('_')[1]
@@ -1268,6 +1327,7 @@ class App:
             else:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
+        return True
 
     def load_csag(self):
         csag = open(self.csagfile.get())
@@ -1562,12 +1622,12 @@ class App:
             self.queue.put('Paired end found ' + str(count) + ' edges.')
         if self.aborttime():
             return
-        if self.getLong.get() == 1:
-            self.queue.put('Finding edges with long reads.')
-            count = len(self.edgelist)
-            self.get_long_edge()
-            count = len(self.edgelist) - count
-            self.queue.put('Long reads found '+ str(count) + 'edges.')
+        # if self.getLong.get() == 1:
+        #     self.queue.put('Finding edges with long reads.')
+        #     count = len(self.edgelist)
+        #     self.get_long_edge()
+        #     count = len(self.edgelist) - count
+        #     self.queue.put('Long reads found '+ str(count) + 'edges.')
         if self.aborttime():
             return
         self.removeDuplicates()
@@ -1592,11 +1652,10 @@ class App:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
         self.writeCSAG()
-        self.csag.set(self.workingDir.get() + '/CSAG.txt')
         self.queue.put('Creating CSAG finished.')
 
     def get_overlap_edges(self):
-        minoverlap, maxmm, maxtrim = self.minoverlap.get(), self.maxmm.get(), self.maxtrim.get()
+        minoverlap, maxmm = self.minoverlap.get(), self.maxmm.get()
         stderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
         subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
                          self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
@@ -2179,8 +2238,14 @@ class App:
                         rising = False
             except:
                 pass
-        self.nmerave.set(int(mf)/2)
-        self.nmercut.set(tf)
+        if self.nmercut.get() == -1 or self.nmerave.get() == -1:
+            if self.nmercut.get() == -1:
+                self.nmercut.set(tf)
+            if self.nmerave.get() == -1:
+                self.nmerave.set(int(mf)/2)
+        else:
+            self.nmerave.set(int(mf)/2)
+            self.nmercut.set(tf)
 
     def untangleEdges(self):
         edgeDict = {}
@@ -3425,13 +3490,60 @@ class App:
         out.close()
         self.update_console('File written.')
 
-root = Tk()
-root.title('Contiguity')
-root.option_add('*Font', 'Heveltica 10')
-root.option_add("*Background", "#E0E0FF")
-root.option_add("*Foreground", "#2B3856")
-root.option_add("*Listbox.Background", '#FFFFFF')
-root.option_add("*Scrollbar.Background", "#C0C0FF")
-root.option_add("*Entry.Background", "#FFFFFF")
-app = App(root)
-root.mainloop()
+
+parser = argparse.ArgumentParser(prog='coif.py', formatter_class=argparse.RawDescriptionHelpFormatter, description='''
+Contiguity.py: A pairwise comparison and contig adjacency graph exploration tool.
+
+USAGE: Contiguity.py -cl -n <nmer_size> -ov <overlap_size> -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
+
+nmer size: should be the nmer size used for assembly - for spades assemblies us a sensible value (21: coverage < 50, 41: coverage ~100, 51: coverage ~200)
+overlap size: should be 1 less than the nmer size, it should be no greater than 50 for spades assemblies
+contig file: in fasta format, don't use the scaffold files as they introduce misassemblies into plasmid contigs (velvet and spades)
+read file: Should be an interleaved fastq file - read1_left, read1_right, read2_left etc... orientated as such --> <--
+output folder: folder to put output files in, can and will overwrite files in this folder, will create folder if folder doesn't exist
+
+Only other option to keep in mind is -rl if the read length is not 101bp
+
+Finally if the output is null (and you expect there to be plasmids in your data, try running with -dp and/or -ns options)
+
+''', epilog="Thanks for using Contiguity")
+parser.add_argument('-co', '--contig_file', action='store', help='fasta file of assembled contigs')
+parser.add_argument('-rf', '--read_file', action='store', help='read file')
+parser.add_argument('-o', '--output_folder', action='store', help='output folder')
+parser.add_argument('-n', '--nmer_size', action='store', type=int, help='nmer size for finding adjacent contigs')
+parser.add_argument('-max_d', '--max_distance', action='store', type=int, default=300, help='maximum distance apart in de bruijn graph for contigs to count as adjacent [300]')
+parser.add_argument('-nmer_a', '--nmer_average', action='store', type=int, default=-1, help='average nmer coverage [auto]')
+parser.add_argument('-nmer_c', '--nmer_cutoff', action='store', type=int, default=-1, help='cutoff for nmer values [auto]')
+parser.add_argument('-ov', '--overlap', action='store', type=int, default=None, help='minimum overlap to create edge')
+parser.add_argument('-rl', '--min_read_length', action='store', type=int, default=75, help='maximum read length [101]')
+parser.add_argument('-max_mm', '--max_mismatch', action='store', type=int, default=2, help='maximum number of mismatches to count overlap [2]')
+parser.add_argument('-lo', '--long_overlap_ident', action='store', type=int, default=85, help='minimum % identity to create an edge where there is a long overlap')
+parser.add_argument('-mp', '--minimum_pairs_edge', action='store', type=int, default=5, help='Minimum pairs to create edge')
+parser.add_argument('-is', '--max_insert_size', action='store', type=int, default=600, help='Upper bound on insert size')
+parser.add_argument('-cl', '--command_line', action='store_true', default=False, help='Don\'t remove repeat candidates')
+parser.add_argument('-no', '--no_overlap_edges', action='store_true', default=False, help='Don\'t get overlap edges')
+parser.add_argument('-nd', '--no_db_edges', action='store_true', default=False, help='Don\'t get De Bruijn edges')
+parser.add_argument('-np', '--no_paired_edges', action='store_true', default=False, help='Don\'t get paired-end edges')
+
+
+sys.stdout.write(' '.join(sys.argv[:]) + '\n')
+
+
+args = parser.parse_args()
+
+if args.command_line:
+    if args.contig_file is None or args.read_file is None or args.output_folder is None:
+        sys.stdout.write("Command line CSAG building requires a contig file [-co] a read file [-r] an nmersize [-n] and an output folder [-o].\n")
+        sys.exit()
+    theapp = App(None)
+else:
+    root = Tk()
+    root.title('Contiguity')
+    root.option_add('*Font', 'Heveltica 10')
+    root.option_add("*Background", "#E0E0FF")
+    root.option_add("*Foreground", "#2B3856")
+    root.option_add("*Listbox.Background", '#FFFFFF')
+    root.option_add("*Scrollbar.Background", "#C0C0FF")
+    root.option_add("*Entry.Background", "#FFFFFF")
+    app = App(root)
+    root.mainloop()
