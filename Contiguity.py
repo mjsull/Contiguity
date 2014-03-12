@@ -1593,23 +1593,27 @@ class App:
         if self.aborttime():
             return
         if self.getdb.get() == 1:
-            self.queue.put('Finding De Bruijn edges.')
-            count = len(self.edgelist)
-            abort = self.get_nmer_freq()
-            if self.aborttime() or self.abort:
-                return
-            self.read_nmer_freq()
-            if self.aborttime():
-                return
-            if self.cutauto.get() == 1:
-                self.getnmercut()
+            if args.khmer:
+                self.get_nmer_freq_khmer()
+                self.get_db_edges_khmer()
+            else:
+                self.queue.put('Finding De Bruijn edges.')
+                count = len(self.edgelist)
+                abort = self.get_nmer_freq()
+                if self.aborttime() or self.abort:
+                    return
+                self.read_nmer_freq()
                 if self.aborttime():
                     return
-            abort = self.get_db_edges()
-            if abort:
-                return
-            count = len(self.edgelist) - count
-            self.queue.put('De Bruijn found ' + str(count) + ' edges.')
+                if self.cutauto.get() == 1:
+                    self.getnmercut()
+                    if self.aborttime():
+                        return
+                abort = self.get_db_edges()
+                if abort:
+                    return
+                count = len(self.edgelist) - count
+                self.queue.put('De Bruijn found ' + str(count) + ' edges.')
         if self.aborttime():
             return
         if self.getPaired.get() == 1:
@@ -1858,14 +1862,20 @@ class App:
 
     def get_paired_edge(self):
         minoverlap = self.minoverlap.get()
-        tempread = open(self.readfile.get())
+        if self.readfile.get()[-3:] == '.gz':
+            tempread = gzip.open(self.readfile.get())
+        else:
+            tempread = open(self.readfile.get())
         firstline = tempread.readline()
         if firstline[0] == '@':
             readType = 'fq'
         elif firstline[0] == '>':
             readType = 'fa'
         else:
-            self.edgeconsole.append('Read file not valid type, skipping paired edge creation.')
+            try:
+                self.edgeconsole.append('Read file not valid type, skipping paired edge creation.')
+            except NameError:
+                sys.stderr.write('Read file not valid type, skipping paired end creation.')
             tempread.close()
             return
         tempread.close()
@@ -2124,6 +2134,44 @@ class App:
                         else:
                             self.edgelist.append((i[1:], True, j[1:], False, 'nnnnnnnnn'))
 
+    def get_nmer_freq_khmer(self):
+        nmersize, reads  = self.nmersize.get(), self.readfile.get()
+        n_threads = 3
+        ht_size = float('3e9')
+        ht_n = 4
+        bigcount = True
+        ht = khmer.new_counting_hash(nmersize, ht_size, ht_n, n_threads) # HT_size, number ht, threads
+        ht.set_use_bigcount(bigcount)
+        rparser = khmer.ReadParser(reads, n_threads)
+        threads = []
+        print 'consuming input', reads
+        for tnum in xrange(n_threads):
+            t = \
+                threading.Thread(
+                    target=ht.consume_fasta_with_reads_parser,
+                    args=(rparser, )
+                )
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+        ht.count('TTATCGGTAAAACCTTGCCCCGCCTCCAGAC')
+        ht.save(self.workingDir.get() + '/khmer.ht')
+        fp_rate = khmer.calc_expected_collisions(ht)
+        print 'fp rate estimated to be %1.3f' % fp_rate
+
+
+        if fp_rate > 0.20:
+            print >>sys.stderr, "**"
+            print >>sys.stderr, "** ERROR: the counting hash is too small for"
+            print >>sys.stderr, "** this data set.  Increase hashsize/num ht."
+            print >>sys.stderr, "**"
+            sys.exit(1)
+
+        print 'DONE.'
+        sys.exit()
+
+
     def get_nmer_freq(self):
         nmersize, reads  = self.nmersize.get(), self.readfile.get()
         nucl = set('atcg')
@@ -2199,6 +2247,7 @@ class App:
         out.close()
         self.nmerfile = self.workingDir.get() + '/nmers'
         return False # thread has not been aborted
+
 
     def read_nmer_freq(self):
         self.nmerdict = {}
@@ -2921,6 +2970,14 @@ class App:
         return outset
 
     def filterBlast(self):
+        refpos = []
+        currx = 0
+        for i in self.reforder:
+            refpos.append(currx)
+            currx += len(self.refDict[i]) / self.scaledown.get() + 10
+        self.refpos = {}
+        for i in range(len(refpos)):
+            self.refpos[self.reforder[i]] = refpos[i]
         self.visible = set(self.contigDict)
         for i in self.hitlist:
             if i[0] in self.visible:
@@ -3518,18 +3575,19 @@ parser.add_argument('-ov', '--overlap', action='store', type=int, default=None, 
 parser.add_argument('-rl', '--min_read_length', action='store', type=int, default=75, help='maximum read length [101]')
 parser.add_argument('-max_mm', '--max_mismatch', action='store', type=int, default=2, help='maximum number of mismatches to count overlap [2]')
 parser.add_argument('-lo', '--long_overlap_ident', action='store', type=int, default=85, help='minimum % identity to create an edge where there is a long overlap')
-parser.add_argument('-mp', '--minimum_pairs_edge', action='store', type=int, default=5, help='Minimum pairs to create edge')
+parser.add_argument('-mp', '--minimum_pairs_edge', action='store', type=int, default=2, help='Minimum pairs to create edge')
 parser.add_argument('-is', '--max_insert_size', action='store', type=int, default=600, help='Upper bound on insert size')
 parser.add_argument('-cl', '--command_line', action='store_true', default=False, help='Don\'t remove repeat candidates')
 parser.add_argument('-no', '--no_overlap_edges', action='store_true', default=False, help='Don\'t get overlap edges')
 parser.add_argument('-nd', '--no_db_edges', action='store_true', default=False, help='Don\'t get De Bruijn edges')
 parser.add_argument('-np', '--no_paired_edges', action='store_true', default=False, help='Don\'t get paired-end edges')
-
-
-sys.stdout.write(' '.join(sys.argv[:]) + '\n')
-
+parser.add_argument('-km', '--khmer', action='store_true', default=False, help='Use khmer for De Bruijn graph contruction')
 
 args = parser.parse_args()
+if args.khmer:
+    import khmer
+    from khmer.khmer_args import build_counting_args, report_on_config
+    from khmer.threading_args import add_threading_args
 
 if args.command_line:
     if args.contig_file is None or args.read_file is None or args.output_folder is None:
