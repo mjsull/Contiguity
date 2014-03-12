@@ -2939,7 +2939,7 @@ class App:
             self.orderContigsVisible()
             self.drawContigs()
             self.drawEdges()
-        if self.viewref.get() and not self.hitlist is None and not self.reforder is None:
+        if self.viewref.get() and not self.hitlist is None and not self.reforder is None and not self.view.get() == 'Filter':
             self.drawRefHits()
         self.canvas.move(ALL, -self.leftmost + 50, 0)
         self.currxscroll = self.rightmost - self.leftmost + 200
@@ -2970,14 +2970,6 @@ class App:
         return outset
 
     def filterBlast(self):
-        refpos = []
-        currx = 0
-        for i in self.reforder:
-            refpos.append(currx)
-            currx += len(self.refDict[i]) / self.scaledown.get() + 10
-        self.refpos = {}
-        for i in range(len(refpos)):
-            self.refpos[self.reforder[i]] = refpos[i]
         self.visible = set(self.contigDict)
         for i in self.hitlist:
             if i[0] in self.visible:
