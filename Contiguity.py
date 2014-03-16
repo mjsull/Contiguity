@@ -20,6 +20,10 @@ import argparse
 
 transtab = string.maketrans('atcgATCG', 'tagcTAGC')
 
+class clqueue:
+    def put(self, theval):
+        sys.stdout.write(theval + '\n')
+
 class dummyVar:
     def __init__(self, theval):
         self.theval = theval
@@ -34,7 +38,7 @@ class contig:
     def __init__(self, name, shortname, sequence, revseq=None):
         self.name = name
         self.shortname = shortname
-        self.forseq = sequence.lower()
+        self.forseq = sequence.upper()
         if revseq == None:
             tempseq = self.forseq[::-1]
             self.revseq = tempseq.translate(transtab)
@@ -317,7 +321,7 @@ class App:
                     sys.exit()
             else:
                 os.makedirs(self.workingDir.get())
-            self.queue = dummyVar('temp')
+            self.queue = clqueue()
             self.abortqueue = Queue.Queue()
             self.abortqueue.put(False)
             self.abort = False
@@ -1593,12 +1597,22 @@ class App:
         if self.aborttime():
             return
         if self.getdb.get() == 1:
+            self.queue.put('Finding De Bruijn edges.')
+            count = len(self.edgelist)
             if args.khmer:
-                self.get_nmer_freq_khmer()
-                self.get_db_edges_khmer()
+                abort = self.get_nmer_freq_khmer()
+                if self.aborttime() or self.abort:
+                    return
+                if self.cutauto.get() == 1:
+                    self.getnmercutkhmer()
+                    if self.aborttime():
+                        return
+                    self.queue.put('Nmer cutoff A set to ' + str(self.nmercut.get()))
+                    self.queue.put('Nmer cutoff B set to ' + str(self.nmerave.get()))
+                abort = self.get_db_edges()
+                if abort:
+                    return
             else:
-                self.queue.put('Finding De Bruijn edges.')
-                count = len(self.edgelist)
                 abort = self.get_nmer_freq()
                 if self.aborttime() or self.abort:
                     return
@@ -1609,11 +1623,13 @@ class App:
                     self.getnmercut()
                     if self.aborttime():
                         return
+                    self.queue.put('Nmer cutoff A set to ' + str(self.nmercut.get()))
+                    self.queue.put('Nmer cutoff B set to ' + str(self.nmerave.get()))
                 abort = self.get_db_edges()
                 if abort:
                     return
-                count = len(self.edgelist) - count
-                self.queue.put('De Bruijn found ' + str(count) + ' edges.')
+            count = len(self.edgelist) - count
+            self.queue.put('De Bruijn found ' + str(count) + ' edges.')
         if self.aborttime():
             return
         if self.getPaired.get() == 1:
@@ -1691,6 +1707,65 @@ class App:
               and qstart > 20 and rstop > 20:
                 self.edgelist.append((query, True, subject, False, self.contigDict[subject].length - rstop + qstop - self.contigDict[query].length + 1))
 
+    def dbpathkhmer(self, currpath, endnmer):
+        nmersize, nmercut, maxdist, nmerave = self.nmersize.get(), self.nmercut.get(), self.maxdist.get(), self.nmerave.get()
+        todo = [currpath]
+        paths = []
+        temptodo = todo[:]
+        tempmaxdist = maxdist
+        count = 0
+        while len(todo) > 0:
+            if len(todo) > 20000:
+                paths = []
+                todo = temptodo[:]
+                tempmaxdist -= 10
+                count += 1
+            thepath = todo.pop().upper()
+            search = True
+            while search:
+                if len(thepath) > tempmaxdist + 20:
+                    search = False
+                if len(thepath) > nmersize + 20 and thepath[-nmersize - 20:] in endnmer:
+                    paths.append(thepath)
+                if search:
+                    newn = thepath[-nmersize + 1:] + 'A'
+                    acount = self.ht.get(newn)
+                    newn = thepath[-nmersize + 1:] + 'T'
+                    tcount = self.ht.get(newn)
+                    newn = thepath[-nmersize + 1:] + 'C'
+                    ccount = self.ht.get(newn)
+                    newn = thepath[-nmersize + 1:] + 'G'
+                    gcount = self.ht.get(newn)
+                    if max([acount, tcount, ccount, gcount]) < nmercut:
+                        search = False
+                    else:
+                        maxnucl = max([(acount, 'A'), (tcount, 'T'), (ccount, 'C'), (gcount, 'G')])[1]
+                        bases = 'ATCG'.replace(maxnucl, '')
+                        for i in bases:
+                            newn = thepath[-nmersize + 1:] + i
+                            if self.ht.get(newn) > nmerave:
+                                todo.append(thepath + i)
+                        thepath += maxnucl
+        countdict = {}
+        for i in paths:
+            total = 0
+            acount = 0
+            for j in range(0, len(i) - nmersize):
+                newn = i[j:j+nmersize]
+                total += self.ht.get(newn)
+                acount += 1
+            if i[-nmersize - 20:] in countdict:
+                if total * 1.0 / acount > countdict[i[-nmersize - 20:]][1]:
+                    countdict[i[-nmersize - 20:]] = (i, total * 1.0 / acount)
+            else:
+                countdict[i[-nmersize - 20:]] = (i, total * 1.0 / acount)
+        paths = []
+        for i in countdict:
+            paths.append(countdict[i][0])
+        return paths
+
+
+
     def dbpath(self, currpath, endnmer):
         nmersize, nmercut, maxdist, nmerave = self.nmersize.get(), self.nmercut.get(), self.maxdist.get(), self.nmerave.get()
         todo = [currpath]
@@ -1712,32 +1787,32 @@ class App:
                 if len(thepath) > nmersize + 20 and thepath[-nmersize - 20:] in endnmer:
                     paths.append(thepath)
                 if search:
-                    newn = thepath[-nmersize + 1:] + 'a'
-                    if newn[nmersize/2] == 'a' or newn[nmersize/2] == 'c':
+                    newn = thepath[-nmersize + 1:] + 'A'
+                    if newn[nmersize/2] == 'A' or newn[nmersize/2] == 'C':
                         newn = newn[::-1]
                         newn = newn.translate(transtab)
                     if newn in self.nmerdict:
                         acount = self.nmerdict[newn]
                     else:
                         acount = 0
-                    newn = thepath[-nmersize + 1:] + 't'
-                    if newn[nmersize/2] == 'a' or newn[nmersize/2] == 'c':
+                    newn = thepath[-nmersize + 1:] + 'T'
+                    if newn[nmersize/2] == 'A' or newn[nmersize/2] == 'C':
                         newn = newn[::-1]
                         newn = newn.translate(transtab)
                     if newn in self.nmerdict:
                         tcount = self.nmerdict[newn]
                     else:
                         tcount = 0
-                    newn = thepath[-nmersize + 1:] + 'c'
-                    if newn[nmersize/2] == 'a' or newn[nmersize/2] == 'c':
+                    newn = thepath[-nmersize + 1:] + 'C'
+                    if newn[nmersize/2] == 'A' or newn[nmersize/2] == 'C':
                         newn = newn[::-1]
                         newn = newn.translate(transtab)
                     if newn in self.nmerdict:
                         ccount = self.nmerdict[newn]
                     else:
                         ccount = 0
-                    newn = thepath[-nmersize + 1:] + 'g'
-                    if newn[nmersize/2] == 'a' or newn[nmersize/2] == 'c':
+                    newn = thepath[-nmersize + 1:] + 'G'
+                    if newn[nmersize/2] == 'A' or newn[nmersize/2] == 'C':
                         newn = newn[::-1]
                         newn = newn.translate(transtab)
                     if newn in self.nmerdict:
@@ -1747,11 +1822,11 @@ class App:
                     if max([acount, tcount, ccount, gcount]) < nmercut:
                         search = False
                     else:
-                        maxnucl = max([(acount, 'a'), (tcount, 't'), (ccount, 'c'), (gcount, 'g')])[1]
-                        bases = 'atcg'.replace(maxnucl, '')
+                        maxnucl = max([(acount, 'A'), (tcount, 'T'), (ccount, 'C'), (gcount, 'G')])[1]
+                        bases = 'ATGC'.replace(maxnucl, '')
                         for i in bases:
                             newn = thepath[-nmersize + 1:] + i
-                            if newn[nmersize/2] == 'a' or newn[nmersize/2] == 'c':
+                            if newn[nmersize/2] == 'A' or newn[nmersize/2] == 'C':
                                 newn = newn[::-1]
                                 newn = newn.translate(transtab)
                             if newn in self.nmerdict and self.nmerdict[newn] > nmerave:
@@ -1759,34 +1834,22 @@ class App:
                         thepath += maxnucl
         countdict = {}
         for i in paths:
+            acount = 0
+            total = 0
+            for j in range(0, len(i) - nmersize):
+                newn = i[j:j+nmersize]
+                if newn[nmersize/2] == 'A' or newn[nmersize/2] == 'C':
+                    newn = newn[::-1]
+                    newn = newn.translate(transtab)
+                acount += 1
+                try:
+                    total += self.nmerdict[newn]
+                except:
+                    pass
             if i[-nmersize - 20:] in countdict:
-                acount = 0
-                total = 0
-                for j in range(0, len(i) - nmersize):
-                    newn = i[j:j+nmersize]
-                    if newn[nmersize/2] == 'a' or newn[nmersize/2] == 'c':
-                        newn = newn[::-1]
-                        newn = newn.translate(transtab)
-                    acount += 1
-                    try:
-                        total += self.nmerdict[newn]
-                    except:
-                        pass
                 if total * 1.0 / acount > countdict[i[-nmersize - 20:]][1]:
                     countdict[i[-nmersize - 20:]] = (i, total * 1.0 / acount)
             else:
-                acount = 0
-                total = 0
-                for j in range(0, len(i) - nmersize):
-                    newn = i[j:j+nmersize]
-                    if newn[nmersize/2] == 'a' or newn[nmersize/2] == 'c':
-                        newn = newn[::-1]
-                        newn = newn.translate(transtab)
-                    acount += 1
-                    try:
-                        total += self.nmerdict[newn]
-                    except:
-                        pass
                 countdict[i[-nmersize - 20:]] = (i, total * 1.0 / acount)
         paths = []
         for i in countdict:
@@ -1796,10 +1859,10 @@ class App:
     def getPerms(self, nmer):
         outlist = set()
         for i in range(len(nmer)):
-            outlist.add(nmer[:i] + 'a' + nmer[i+1:])
-            outlist.add(nmer[:i] + 't' + nmer[i+1:])
-            outlist.add(nmer[:i] + 'c' + nmer[i+1:])
-            outlist.add(nmer[:i] + 'g' + nmer[i+1:])
+            outlist.add(nmer[:i] + 'A' + nmer[i+1:])
+            outlist.add(nmer[:i] + 'T' + nmer[i+1:])
+            outlist.add(nmer[:i] + 'C' + nmer[i+1:])
+            outlist.add(nmer[:i] + 'G' + nmer[i+1:])
         return(list(outlist))
 
     def get_db_edges(self):
@@ -1809,12 +1872,12 @@ class App:
             name = i
             seq = self.contigDict[i].forseq
             nmer = seq[:nmersize + 20]
-            nmerlist = self.getPerms(nmer)
-            for nmer in nmerlist:
-                if nmer in ends:
-                    ends[nmer] += ((name, True),)
-                else:
-                    ends[nmer] = ((name, True),)
+            #nmerlist = self.getPerms(nmer)
+            #for nmer in nmerlist:
+            if nmer in ends:
+                ends[nmer] += ((name, True),)
+            else:
+                ends[nmer] = ((name, True),)
             ends[nmer] = ((name, True),)
             nmer = seq[-nmersize - 20:]
             nmer = nmer[::-1]
@@ -1828,7 +1891,10 @@ class App:
         for i in self.contigDict:
             if self.aborttime():
                 return True
-            forpaths = self.dbpath(self.contigDict[i].forseq[-nmersize:], ends)
+            if args.khmer:
+                forpaths = self.dbpathkhmer(self.contigDict[i].forseq[-nmersize:], ends)
+            else:
+                forpaths = self.dbpath(self.contigDict[i].forseq[-nmersize:], ends)
             for j in forpaths:
                 nmer = j[-nmersize - 20:]
                 for k in ends[nmer]:
@@ -1841,7 +1907,11 @@ class App:
                             self.edgelist.append((i, True, k[0], True, appendpath))
                         else:
                             self.edgelist.append((i, True, k[0], False, appendpath))
-            revpaths = self.dbpath(self.contigDict[i].revseq[-nmersize:], ends)
+
+            if args.khmer:
+                revpaths = self.dbpathkhmer(self.contigDict[i].revseq[-nmersize:], ends)
+            else:
+                revpaths = self.dbpath(self.contigDict[i].revseq[-nmersize:], ends)
             for j in revpaths:
                 nmer = j[-nmersize - 20:]
                 for k in ends[nmer]:
@@ -1854,7 +1924,10 @@ class App:
                             self.edgelist.append((i, False, k[0], True, appendpath))
                         else:
                             self.edgelist.append((i, False, k[0], False, appendpath))
-        del self.nmerdict
+        if args.khmer:
+            del self.ht
+        else:
+            del self.nmerdict
         return False
 
     def getflag(self, n, count=11):
@@ -2136,45 +2209,35 @@ class App:
 
     def get_nmer_freq_khmer(self):
         nmersize, reads  = self.nmersize.get(), self.readfile.get()
-        n_threads = 3
-        ht_size = float('3e9')
+        n_threads = 1
+        ht_size = float('2e9')
         ht_n = 4
         bigcount = True
-        ht = khmer.new_counting_hash(nmersize, ht_size, ht_n, n_threads) # HT_size, number ht, threads
-        ht.set_use_bigcount(bigcount)
+        self.ht = khmer.new_counting_hash(nmersize, ht_size, ht_n, n_threads) # HT_size, number ht, threads
+        self.ht.set_use_bigcount(bigcount)
         rparser = khmer.ReadParser(reads, n_threads)
         threads = []
-        print 'consuming input', reads
+        self.queue.put('consuming input ' + reads)
         for tnum in xrange(n_threads):
             t = \
                 threading.Thread(
-                    target=ht.consume_fasta_with_reads_parser,
+                    target=self.ht.consume_fasta_with_reads_parser,
                     args=(rparser, )
                 )
             threads.append(t)
             t.start()
         for t in threads:
             t.join()
-        ht.count('TTATCGGTAAAACCTTGCCCCGCCTCCAGAC')
-        ht.save(self.workingDir.get() + '/khmer.ht')
-        fp_rate = khmer.calc_expected_collisions(ht)
-        print 'fp rate estimated to be %1.3f' % fp_rate
-
-
+        self.ht.save(self.workingDir.get() + '/khmer.ht')
+        fp_rate = khmer.calc_expected_collisions(self.ht)
+        self.queue.put('fp rate estimated to be %1.3f' % fp_rate)
         if fp_rate > 0.20:
-            print >>sys.stderr, "**"
-            print >>sys.stderr, "** ERROR: the counting hash is too small for"
-            print >>sys.stderr, "** this data set.  Increase hashsize/num ht."
-            print >>sys.stderr, "**"
+            self.queue.put("**\n** ERROR: the counting hash is too small for\n** this data set.  Increase hashsize/num ht.\n**")
             sys.exit(1)
-
-        print 'DONE.'
-        sys.exit()
-
 
     def get_nmer_freq(self):
         nmersize, reads  = self.nmersize.get(), self.readfile.get()
-        nucl = set('atcg')
+        nucl = set('ATGC')
         self.nmerdict = {}
         if reads[-3:] == '.gz':
             readfile = gzip.open(reads)
@@ -2192,7 +2255,7 @@ class App:
                 if getfaseq:
                     for i in range(0, len(seq) - nmersize):
                         nmer = seq[i:i+nmersize]
-                        if nmer[nmersize/2] == 'a' or nmer[nmersize/2] == 'c':
+                        if nmer[nmersize/2] == 'A' or nmer[nmersize/2] == 'C':
                             nmer = nmer[::-1]
                             nmer = nmer.translate(transtab)
                         if nmer in self.nmerdict:
@@ -2203,13 +2266,13 @@ class App:
                 getfaseq = True
                 seq = ''
             elif getfaseq:
-                seq += line.rstrip().lower()
+                seq += line.rstrip().upper()
             elif getseq:
                 getseq = False
-                seq = line.rstrip().lower()
+                seq = line.rstrip().upper()
                 for i in range(0, len(seq) - nmersize + 1):
                     nmer = seq[i:i+nmersize]
-                    if nmer[nmersize/2] == 'a' or nmer[nmersize/2] == 'c':
+                    if nmer[nmersize/2] == 'A' or nmer[nmersize/2] == 'C':
                         nmer = nmer[::-1]
                         nmer = nmer.translate(transtab)
                     if nmer in self.nmerdict:
@@ -2220,7 +2283,7 @@ class App:
         if getfaseq:
             for i in range(0, len(seq) - nmersize + 1):
                 nmer = seq[i:i+nmersize]
-                if nmer[nmersize/2] == 'a' or nmer[nmersize/2] == 'c':
+                if nmer[nmersize/2] == 'A' or nmer[nmersize/2] == 'C':
                     nmer = nmer[::-1]
                     nmer = nmer.translate(transtab)
                 if nmer in self.nmerdict:
@@ -2258,6 +2321,24 @@ class App:
             freq = int(freq)
             if freq > nmercut:
                 self.nmerdict[nmer] = freq
+
+    def getnmercutkhmer(self):
+        total = 0
+        totallen = 0
+        for i in self.contigDict:
+            count = self.ht.get_median_count(self.contigDict[i].forseq.upper())[0] * self.contigDict[i].length
+            total += count
+            totallen += self.contigDict[i].length
+        tf = max([3, total / totallen / 12])
+        mf = total / totallen
+        if self.nmercut.get() == -1 or self.nmerave.get() == -1:
+            if self.nmercut.get() == -1:
+                self.nmercut.set(tf)
+            if self.nmerave.get() == -1:
+                self.nmerave.set(int(mf)/2)
+        else:
+            self.nmerave.set(int(mf)/2)
+            self.nmercut.set(tf)
 
     def getnmercut(self):
         nmerfile = open(self.nmerfile)
