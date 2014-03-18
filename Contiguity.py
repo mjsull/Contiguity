@@ -35,7 +35,7 @@ class dummyVar:
         self.theval = theval
 
 class contig:
-    def __init__(self, name, shortname, sequence, revseq=None):
+    def __init__(self, name, shortname, sequence, revseq=None, coverage=None):
         self.name = name
         self.shortname = shortname
         self.forseq = sequence.upper()
@@ -1184,9 +1184,85 @@ class App:
             and what.split()[2].isdigit() and what.split()[3].isdigit():
             self.load_lastgraph()
             self.update_console('LastGraph loaded.')
+        elif what[:2] == 'AS':
+            self.load_ace()
+            self.update_console('ACE file loaded.')
         else:
             tkMessageBox.showerror('Invalid format', 'Contiguity cannot recognise file type.')
         self.writeWorkCont()
+
+    def load_ace(self):
+        ace = open(self.csagfile.get())
+        getseq = False
+        edgedict = {}
+        name = None
+        longname = {}
+        for line in ace:
+            if line.startswith('CO '):
+                if not name is None:
+                    coverage = totalbase * 1.0 / len(seq)
+                    aninstance = contig(name, shortname, seq, None, coverage)
+                    self.contigDict[name] = aninstance
+                    longname[shortname] = name
+                name = line.split()[1]
+                shortname = str(int(name[6:]))
+                totalbase = 0
+                getseq = True
+                seq = ''
+            elif line.startswith('BQ'):
+                getseq = False
+            elif line.startswith('AF '):
+                readname = line.split()[1]
+                if '.to' in readname:
+                    to = readname.split('.to')[1]
+                    to = to.split('.')[0]
+                    if not shortname in edgedict:
+                        edgedict[shortname] = (set(), set())
+                    edgedict[shortname][1].add(to)
+                if '.fm' in readname:
+                    fm = readname.split('.fm')[1]
+                    fm = fm.split('.')[0]
+                    if not shortname in edgedict:
+                        edgedict[shortname] = (set(), set())
+                    edgedict[shortname][0].add(fm)
+            elif getseq:
+                seq += line.rstrip().replace('*', '').upper()
+            elif line.startswith('QA '):
+                totalbase += int(line.split()[2]) - int(line.split()[1])
+        coverage = totalbase * 1.0 / len(seq)
+        aninstance = contig(name, shortname, seq, None, coverage)
+        self.contigDict[name] = aninstance
+        longname[shortname] = name
+        for i in edgedict:
+            for j in edgedict[i][0]:
+                if i in edgedict[j][0]:
+                    if not (i, False, j, True, 0) in self.edgelist and not (j, True, i, False, 0) in self.edgelist:
+                        self.edgelist.append((longname[i], False, longname[j], True, 0))
+                if i in edgedict[j][1]:
+                    if not (i, False, j, False, 0) in self.edgelist and not (j, True, i, True, 0) in self.edgelist:
+                        self.edgelist.append((longname[i], False, longname[j], False, 0))
+            for j in edgedict[i][1]:
+                if i in edgedict[j][0]:
+                    if not (i, True, j, True, 0) in self.edgelist and not (j, False, i, False, 0) in self.edgelist:
+                        self.edgelist.append((longname[i], True, longname[j], True, 0))
+                if i in edgedict[j][1]:
+                    if not (i, True, j, False, 0) in self.edgelist and not (j, False, i, True, 0) in self.edgelist:
+                        self.edgelist.append((longname[i], True, longname[j], False, 0))
+        for i in self.edgelist:
+            contiga, dira, contigb, dirb, overlap = i
+            if dira and dirb:
+                self.contigDict[contiga].to.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, False, overlap))
+            elif dira and not dirb:
+                self.contigDict[contiga].to.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, False, overlap))
+            elif not dira and dirb:
+                self.contigDict[contiga].fr.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, True, overlap))
+            else:
+                self.contigDict[contiga].fr.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, True, overlap))
+
 
     def load_lastgraph(self):
         lg = open(self.csagfile.get())
