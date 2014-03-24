@@ -57,10 +57,22 @@ class contig:
         self.visible = False
         self.to = []
         self.fr = []
+        if coverage is None:
+            self.coverage = 'N/A'
+        else:
+            self.coverage = round(coverage, 2)
+        gcount = self.forseq.count('G')
+        ccount = self.forseq.count('C')
+        acount = self.forseq.count('A')
+        tcount = self.forseq.count('T')
+        self.gccontent = round((gcount + ccount) * 100.0 / self.length, 2)
+        self.gcskew = round((gcount - ccount) * 1.0 / (gcount + ccount), 2)
+        self.atskew = round((acount - tcount) * 1.0 / (acount + tcount), 2)
+        self.customval = 'N/A'
+        self.customcol = '#9933CC'
         self.xpos = None
         self.ypos = None
         self.orient = [True]
-        self.short = False
         self.dupnumber = 1
         self.startanchor = 0
         self.stopanchor = 0
@@ -109,14 +121,20 @@ class App:
             self.viewmenu.add_command(label="Shrink", command=self.shrink)
             self.viewmenu.add_command(label="Stretch", command=self.stretch)
             self.menubar.add_cascade(label="View", menu=self.viewmenu)
-            self.graphmenu = Menu(self.menubar, tearoff=0)
-            self.graphmenu.add_command(label="Select all", command=self.select_all)
-            self.graphmenu.add_command(label="Clear selected", command=self.clear_lists)
-            self.graphmenu.add_separator()
-            self.graphmenu.add_command(label="Find paths", command=self.findPaths)
-            self.graphmenu.add_command(label="Write fasta", command=self.writeFasta)
-            self.graphmenu.add_command(label="Write multifasta", command=self.writeMultiFasta)
-            self.menubar.add_cascade(label="Selected", menu=self.graphmenu)
+            self.selectmenu = Menu(self.menubar, tearoff=0)
+            self.selectmenu.add_command(label="Select all", command=self.select_all)
+            self.selectmenu.add_command(label="Clear selected", command=self.clear_lists)
+            self.selectmenu.add_separator()
+            self.selectmenu.add_command(label="Find paths", command=self.findPaths)
+            self.selectmenu.add_command(label="Write fasta", command=self.writeFasta)
+            self.selectmenu.add_command(label="Write multifasta", command=self.writeMultiFasta)
+            self.selectmenu.add_separator()
+            self.selectmenu.add_command(label="Colour options", command=self.colour_options)
+            self.selectmenu.add_command(label="Load special", command=self.load_special)
+            self.menubar.add_cascade(label="Tools", menu=self.selectmenu)
+          #  self.specialmenu = Menu(self.menubar, tearoff=0)
+           # self.specialmenu.add_command(label="Options", command=self.specialOptions)
+           # self.specialmenu.add_command(label="Load custom")
             self.currxscroll = 1000000
             self.curryscroll = 1000000
             self.fontsize = 12
@@ -149,15 +167,19 @@ class App:
             self.utility.add(self.dirframe, sticky=NSEW, minsize=70)
             self.lengthframe = Frame(self.utility)
             self.utility.add(self.lengthframe, sticky=NSEW, minsize=70)
+            self.specialframe = Frame(self.utility)
+            self.utility.add(self.specialframe, sticky=NSEW, minsize=70)
             self.contiglist.grid_rowconfigure(1, weight=1, minsize=30)
             self.contiglist.grid_columnconfigure(0, weight=1)
             self.dirframe.grid_rowconfigure(1, weight=1, minsize=30)
             self.dirframe.grid_columnconfigure(0, weight=1)
             self.lengthframe.grid_rowconfigure(1, weight=1, minsize=30)
             self.lengthframe.grid_columnconfigure(0, weight=1)
+            self.specialframe.grid_rowconfigure(1, weight=1, minsize=30)
+            self.specialframe.grid_columnconfigure(0, weight=1)
             self.clscroll = Scrollbar(self.lengthframe, orient=VERTICAL)
-            self.namelabel = Label(self.contiglist, text='Contig name', bg='#FFFFFF',  relief=SUNKEN)
-            self.namelabel.grid(row=0, column=0, sticky=EW)
+            self.namelabel = Label(self.contiglist, text='Contig name', bg='#FFFFFF',  relief=SUNKEN, pady=4, bd=1)
+            self.namelabel.grid(row=0, column=0, sticky=EW, pady=2)
             self.namelist = Listbox(self.contiglist, yscrollcommand=self.clscroll.set, exportselection=0, width=30, height=5)
             self.namelist.bind('<Button-1>', self.setselectedcontig)
             self.namelist.bind('<Double-Button-1>', self.doublecontig)
@@ -165,8 +187,8 @@ class App:
             self.namelist.bind('<Button-4>', self.onmousewheel)
             self.namelist.bind('<Button-5>', self.onmousewheel)
             self.namelist.grid(row=1, column=0, sticky=NSEW)
-            self.dirlabel = Label(self.dirframe, bg='#FFFFFF', text='Strand', relief=SUNKEN)
-            self.dirlabel.grid(row=0, column=0, sticky=NSEW)
+            self.dirlabel = Label(self.dirframe, bg='#FFFFFF', text='Strand', relief=SUNKEN, pady=4, bd=1)
+            self.dirlabel.grid(row=0, column=0, sticky=NSEW, pady=2)
             self.dirlist = Listbox(self.dirframe, yscrollcommand=self.clscroll.set, exportselection=0, width=7, height=5)
             self.dirlist.bind('<Button-1>', self.setselectedcontig)
             self.dirlist.bind('<Double-Button-1>', self.doublecontig)
@@ -174,8 +196,8 @@ class App:
             self.dirlist.bind('<Button-4>', self.onmousewheel)
             self.dirlist.bind('<Button-5>', self.onmousewheel)
             self.dirlist.grid(row=1, column=0, sticky=NSEW)
-            self.lengthlabel = Label(self.lengthframe, text='Length', bg='#FFFFFF',  relief=SUNKEN)
-            self.lengthlabel.grid(row=0, column=0, sticky=EW)
+            self.lengthlabel = Label(self.lengthframe, text='Length', bg='#FFFFFF',  relief=SUNKEN, pady=4, bd=1)
+            self.lengthlabel.grid(row=0, column=0, sticky=NSEW, pady=2)
             self.lengthlist = Listbox(self.lengthframe, yscrollcommand=self.clscroll.set, exportselection=0, width=7, height=5)
             self.lengthlist.bind('<Button-1>', self.setselectedcontig)
             self.lengthlist.bind('<Double-Button-1>', self.doublecontig)
@@ -183,7 +205,18 @@ class App:
             self.lengthlist.bind('<Button-4>', self.onmousewheel)
             self.lengthlist.bind('<Button-5>', self.onmousewheel)
             self.lengthlist.grid(row=1, column=0, sticky=NSEW)
-            self.clscroll = Scrollbar(self.lengthframe, orient=VERTICAL)
+            self.currspecial = StringVar(value='None')
+            self.speciallabel = OptionMenu(self.specialframe, self.currspecial, 'Coverage', 'GC content', 'Custom', 'GC skew', 'AT skew', 'None', command=self.changespecial)
+            self.speciallabel.config(bg='#FFFFFF',  relief=SUNKEN, pady=4, bd=1)
+            self.speciallabel.grid(row=0, column=0, sticky=NSEW)
+            self.speciallist = Listbox(self.specialframe, yscrollcommand=self.clscroll.set, exportselection=0, width=14, height=5)
+            self.speciallist.bind('<Button-1>', self.setselectedcontig)
+            self.speciallist.bind('<Double-Button-1>', self.doublecontig)
+            self.speciallist.bind('<MouseWheel>', self.onmousewheel)
+            self.speciallist.bind('<Button-4>', self.onmousewheel)
+            self.speciallist.bind('<Button-5>', self.onmousewheel)
+            self.speciallist.grid(row=1, column=0, sticky=NSEW)
+            self.clscroll = Scrollbar(self.specialframe, orient=VERTICAL)
             self.clscroll.config(command=self.yview)
             self.clscroll.grid(row=1, column=1, sticky=NS)
             master.geometry('+10+20')
@@ -198,8 +231,28 @@ class App:
             self.rcmenu.add_command(label="Remove", command=self.remove_contig)
             self.rcmenu.add_command(label="Duplicate", command=self.duplicate_contig)
             self.rcmenu.add_separator()
-            self.rcmenu.add_command(label="Show to", command=self.show_to)
-            self.rcmenu.add_command(label="Show from", command=self.show_from)
+            self.tomenu = Menu(self.rcmenu, tearoff=0)
+            self.tohlmenu = Menu(self.tomenu, tearoff=0)
+            self.tohlmenu.add_command(label='black', command=self.to_black)
+            self.tohlmenu.add_command(label='red', command=self.to_red)
+            self.tohlmenu.add_command(label='blue', command=self.to_blue)
+            self.tohlmenu.add_command(label='green', command=self.to_green)
+            self.tomenu.add_cascade(label="highlight", menu=self.tohlmenu)
+            self.tomenu.add_command(label="add", command=self.show_to)
+            self.tomenu.add_command(label="move", command=self.move_to)
+            self.tomenu.add_command(label="duplicate", command=self.dupe_to)
+            self.rcmenu.add_cascade(label="to", menu=self.tomenu)
+            self.frmenu = Menu(self.rcmenu, tearoff=0)
+            self.frhlmenu = Menu(self.frmenu, tearoff=0)
+            self.frhlmenu.add_command(label='black', command=self.fr_black)
+            self.frhlmenu.add_command(label='red', command=self.fr_red)
+            self.frhlmenu.add_command(label='blue', command=self.fr_blue)
+            self.frhlmenu.add_command(label='green', command=self.fr_green)
+            self.frmenu.add_cascade(label="highlight", menu=self.frhlmenu)
+            self.frmenu.add_command(label="add", command=self.show_fr)
+            self.frmenu.add_command(label="move", command=self.move_fr)
+            self.frmenu.add_command(label="duplicate", command=self.dupe_fr)
+            self.rcmenu.add_cascade(label="fr", menu=self.frmenu)
             self.canvas.tag_bind('map', '<Button-3>', self.rightClick)
             self.canvas.bind('<Button-2>', self.beginDrag)
             self.canvas.bind('<B2-Motion>', self.dragCanvas)
@@ -268,6 +321,13 @@ class App:
             self.maxnode = IntVar(value=10)
             self.maxpath = IntVar(value=1000000)
             self.onlyshort = IntVar(value=1)
+            self.gcmin = DoubleVar(value=40.0)
+            self.gcmax = DoubleVar(value=60.0)
+            self.skewmin = DoubleVar(value=-0.2)
+            self.skewmax = DoubleVar(value=0.2)
+            self.covmin = DoubleVar(value=0.0)
+            self.covmax = DoubleVar(value=200.0)
+            self.covlog = IntVar(value=0)
             self.originalxscroll = self.currxscroll
             self.originalyscroll = self.curryscroll
             self.refline = 50
@@ -327,6 +387,111 @@ class App:
             self.abort = False
             self.edge_thread()
 
+    def changespecial(self, theopt):
+        self.speciallist.delete(0, END)
+        if theopt == 'None':
+            for i in self.namelist.get(0, END):
+                self.speciallist.insert(END, ' ')
+            for i in self.canvas.find_withtag('contig'):
+                self.canvas.itemconfig(i, fill='#9933CC')
+        elif theopt == 'GC content':
+            for i in self.namelist.get(0, END):
+                self.speciallist.insert(END, self.contigDict[i].gccontent)
+            if self.gcmin.get() >= self.gcmax.get() or self.gcmin.get() < 0 or self.gcmax.get() > 100:
+                tkMessageBox.showerror('Invalid GC min or max value.', 'Please ensure min < max and values in range 0..100')
+                return
+            for i in self.canvas.find_withtag('contig'):
+                contigname = self.canvas.gettags(i)[0][1:]
+                if '_dup' in contigname:
+                    contigname = contigname.split('_dup')[0]
+                gccontent = self.contigDict[contigname].gccontent
+                if gccontent <= self.gcmin.get():
+                    colour = '#9933CC'
+                elif gccontent >= self.gcmax.get():
+                    colour = '#CC0000'
+                else:
+                    ratio = (gccontent - self.gcmin.get()) / (self.gcmax.get() - self.gcmin.get())
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+                self.canvas.itemconfig(i, fill=colour)
+        elif theopt == 'GC skew':
+            for i in self.namelist.get(0, END):
+                self.speciallist.insert(END, self.contigDict[i].gcskew)
+            if self.skewmin.get() >= self.skewmax.get() or self.skewmin.get() < -1 or self.skewmax.get() > 1:
+                tkMessageBox.showerror('Invalid skew min or max value.', 'Please ensure min < max and values in range -1..1')
+                return
+            for i in self.canvas.find_withtag('contig'):
+                contigname = self.canvas.gettags(i)[0][1:]
+                if '_dup' in contigname:
+                    contigname = contigname.split('_dup')[0]
+                    orient = self.contigDict[contigname].orient[int(contigname.split('_dup')[1])]
+                else:
+                    orient = self.contigDict[contigname].orient[0]
+                if orient:
+                    gcskew = self.contigDict[contigname].gcskew
+                else:
+                    gcskew = - self.contigDict[contigname].gccontent
+                if gcskew <= self.skewmin.get():
+                    colour = '#9933CC'
+                elif gcskew >= self.skewmax.get():
+                    colour = '#CC0000'
+                else:
+                    ratio = (gcskew - self.skewmin.get()) / (self.skewmax.get() - self.skewmin.get())
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+                self.canvas.itemconfig(i, fill=colour)
+        elif theopt == 'AT skew':
+            for i in self.namelist.get(0, END):
+                self.speciallist.insert(END, self.contigDict[i].atskew)
+            if self.skewmin.get() >= self.skewmax.get() or self.skewmin.get() < -1 or self.skewmax.get() > 1:
+                tkMessageBox.showerror('Invalid skew min or max value.', 'Please ensure min < max and values in range -1..1')
+                return
+            for i in self.canvas.find_withtag('contig'):
+                contigname = self.canvas.gettags(i)[0][1:]
+                if '_dup' in contigname:
+                    contigname = contigname.split('_dup')[0]
+                    orient = self.contigDict[contigname].orient[int(contigname.split('_dup')[1])]
+                else:
+                    orient = self.contigDict[contigname].orient[0]
+                if orient:
+                    atskew = self.contigDict[contigname].atskew
+                else:
+                    atskew = - self.contigDict[contigname].gccontent
+                if atskew <= self.skewmin.get():
+                    colour = '#9933CC'
+                elif atskew >= self.skewmax.get():
+                    colour = '#CC0000'
+                else:
+                    ratio = (atskew - self.skewmin.get()) / (self.skewmax.get() - self.skewmin.get())
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+                self.canvas.itemconfig(i, fill=colour)
+        elif theopt == 'Coverage':
+            for i in self.namelist.get(0, END):
+                self.speciallist.insert(END, self.contigDict[i].coverage)
+            if self.covmin.get() >= self.covmax.get() or self.covmin.get() < 0:
+                tkMessageBox.showerror('Invalid skew min or max value.', 'Please ensure min < max and values in range -1..1')
+                return
+            if self.covmin.get() == 0 and self.covlog.get() == 1:
+                self.covmin.set(1)
+            for i in self.canvas.find_withtag('contig'):
+                contigname = self.canvas.gettags(i)[0][1:]
+                if '_dup' in contigname:
+                    contigname = contigname.split('_dup')[0]
+                coverage = self.contigDict[contigname].coverage
+                if coverage <= self.covmin.get() or coverage == 'N/A':
+                    colour = '#9933CC'
+                elif coverage >= self.covmax.get():
+                    colour = '#CC0000'
+                else:
+                    if self.covlog.get() == 0:
+                        ratio = (coverage - self.covmin.get()) / (self.covmax.get() - self.covmin.get())
+                    else:
+                        ratio = (math.log10(coverage) - math.log10(self.covmin.get())) / (math.log10(self.covmax.get()) - math.log10(self.covmin.get()))
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+                self.canvas.itemconfig(i, fill=colour)
+        elif theopt == 'Custom':
+            for i in self.namelist.get(0, END):
+                self.speciallist.insert(END, self.contigDict[i].customval)
+            for i in self.canvas.find_withtag('contig'):
+                self.canvas.itemconfig(i, fill='#9933CC')
 
     def cancelprocess(self):
         self.abort = True
@@ -351,11 +516,12 @@ class App:
         self.namelist.delete(0, END)
         self.dirlist.delete(0, END)
         self.lengthlist.delete(0, END)
+        self.speciallist.delete(0, END)
         self.selected = []
         contiglist = self.canvas.find_withtag('contig')
         newlist = []
         for i in contiglist:
-            self.canvas.itemconfig(i, fill='#A3A948')
+            self.canvas.itemconfig(i, outline='#FFCC00', width=3)
             coords = self.canvas.coords(i)
             thetag = self.canvas.gettags(i)[0]
             newlist.append((coords, thetag))
@@ -375,24 +541,56 @@ class App:
                 self.dirlist.insert(END, '-')
             self.lengthlist.insert(END, str(self.contigDict[contig].length))
             self.selected.append(thetag)
+            if self.currspecial.get() == 'None':
+                self.speciallist.insert(END, ' ')
+            elif self.currspecial.get() == 'GC content':
+                self.speciallist.insert(END, self.contigDict[contig].gccontent)
+            elif self.currspecial.get() == 'GC skew':
+                self.speciallist.insert(END, self.contigDict[contig].gcskew)
+            elif self.currspecial.get() == 'AT skew':
+                self.speciallist.insert(END, self.contigDict[contig].atskew)
+            elif self.currspecial.get() == 'Coverage':
+                self.speciallist.insert(END, self.contigDict[contig].coverage)
+            elif self.currspecial.get() == 'Custom':
+                self.speciallist.insert(END, self.contigDict[contig].custom)
+
 
     def clear_lists(self):
         self.namelist.delete(0, END)
         self.dirlist.delete(0, END)
         self.lengthlist.delete(0, END)
+        self.speciallist.delete(0, END)
         self.selected = []
         contiglist = self.canvas.find_withtag('contig')
         for i in contiglist:
-            self.canvas.itemconfig(i, fill='#009989')
+            self.canvas.itemconfig(i, outline='#000000', width=1)
 
-
+    def load_special(self):
+        filename = tkFileDialog.askopenfilename()
+        if filename == '' or filename == ():
+            return
+        cset = set('abcdef0123456789ABCDEF')
+        specfile = open(filename)
+        for line in specfile:
+            splitline = line.split()
+            if splitline[0] in conitgDict:
+                self.contigDict[splitline[0]].customval = splitline[1]
+            else:
+                self.update_console(splitline[0] + ' not found.')
+            if len(splitline) == 3:
+                if len(splitline[2]) == 7 and splitline[2][0] == '#' and set(splitline[2][1:]) <= cset:
+                    self.contigDict[splitline[0]].customcol = splitline[2]
+                else:
+                    self.update_console('Invalid colour')
+            elif len(splitline) != 2:
+                self.update_console('Invalid column number')
 
     def addtolist(self, event):
         thetag = self.canvas.gettags(CURRENT)[0]
         thecontig = self.canvas.find_withtag(thetag)[0]
-        thecolour = self.canvas.itemcget(thecontig, "fill")
-        if thecolour == "#009989":
-            self.canvas.itemconfig(thecontig, fill='#A3A948')
+        thecolour = self.canvas.itemcget(thecontig, "outline")
+        if thecolour == "#000000":
+            self.canvas.itemconfig(thecontig, outline='#FFCC00', width=3)
             contig = thetag[1:]
             if '_dup' in contig:
                 dupno = int(contig.split('_dup')[1])
@@ -405,14 +603,27 @@ class App:
             else:
                 self.dirlist.insert(END, '-')
             self.lengthlist.insert(END, str(self.contigDict[contig].length))
+            if self.currspecial.get() == 'None':
+                self.speciallist.insert(END, ' ')
+            elif self.currspecial.get() == 'GC content':
+                self.speciallist.insert(END, self.contigDict[contig].gccontent)
+            elif self.currspecial.get() == 'GC skew':
+                self.speciallist.insert(END, self.contigDict[contig].gcskew)
+            elif self.currspecial.get() == 'AT skew':
+                self.speciallist.insert(END, self.contigDict[contig].atskew)
+            elif self.currspecial.get() == 'Coverage':
+                self.speciallist.insert(END, self.contigDict[contig].coverage)
+            elif self.currspecial.get() == 'Custom':
+                self.speciallist.insert(END, self.contigDict[contig].custom)
             self.selected.append(thetag)
         else:
-            self.canvas.itemconfig(thecontig, fill='#009989')
+            self.canvas.itemconfig(thecontig, outline='#000000', width=1)
             for i in range(len(self.selected)):
                 if self.selected[i] == thetag:
                     self.namelist.delete(i)
                     self.dirlist.delete(i)
                     self.lengthlist.delete(i)
+                    self.speciallist.delete(i)
                     self.selected.pop(i)
                     break
 
@@ -545,20 +756,19 @@ class App:
         self.namelist.yview_scroll(args[0], 'units')
         self.dirlist.yview_scroll(args[0], 'units')
         self.lengthlist.yview_scroll(args[0], 'units')
-
-      #  apply(self.namelist.yview, args)
-      #  apply(self.dirlist.yview, args)
-      #  apply(self.lengthlist.yview, args)
+        self.speciallist.yview_scroll(args[0], 'units')
 
     def onmousewheel(self, event):
         if event.num == 5 or event.delta == -120:
             self.namelist.yview_scroll(1, 'units')
             self.dirlist.yview_scroll(1, 'units')
             self.lengthlist.yview_scroll(1, 'units')
+            self.speciallist.yview_scroll(1, 'units')
         if event.num == 4 or event.delta == 120:
             self.namelist.yview_scroll(-1, 'units')
             self.dirlist.yview_scroll(-1, 'units')
             self.lengthlist.yview_scroll(-1, 'units')
+            self.speciallist.yview_scroll(-1, 'units')
 
         return "break"
 
@@ -579,6 +789,7 @@ class App:
     def rightClick(self, event):
         self.rcmenu.post(event.x_root, event.y_root)
         self.rctag = self.canvas.gettags(CURRENT)[0]
+        self.rcpos = (event.x_root, event.y_root)
 
     def removerc(self, event):
         self.rcmenu.unpost()
@@ -590,6 +801,7 @@ class App:
         btag = thetag + 'b'
         sstag = thetag + 'ss'
         setag = thetag + 'se'
+        thecolour = self.canvas.itemcget(thetag, "outline")
         self.visible.remove(thetag[1:])
         self.canvas.delete(thetag)
         self.canvas.delete(starttag)
@@ -597,6 +809,15 @@ class App:
         self.canvas.delete(btag)
         self.canvas.delete(sstag)
         self.canvas.delete(setag)
+        if thecolour == "#FFCC00":
+            for i in range(len(self.selected)):
+                if self.selected[i] == thetag:
+                    self.namelist.delete(i)
+                    self.dirlist.delete(i)
+                    self.lengthlist.delete(i)
+                    self.speciallist.delete(i)
+                    self.selected.pop(i)
+                    break
 
     def reverse_contig(self):
         thetag = self.rctag
@@ -608,6 +829,40 @@ class App:
             dupnum = 0
         if contig in self.contigDict:
             self.contigDict[contig].orient[dupnum] = not self.contigDict[contig].orient[dupnum]
+        if self.currspecial.get() == 'GC skew':
+            if self.contigDict[contig].orient[dupnum]:
+                gcskew = self.contigDict[contig].gcskew
+            else:
+                gcskew = - self.contigDict[contig].gcskew
+            if gcskew <= self.skewmin.get():
+                colour = '#9933CC'
+            elif gcskew >= self.skewmax.get():
+                colour = '#CC0000'
+            else:
+                ratio = (gcskew - self.skewmin.get()) / (self.skewmax.get() - self.skewmin.get())
+                colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+            itema = self.canvas.find_withtag(thetag)
+            itemb = self.canvas.find_withtag('contig')
+            for item in itema:
+                if item in itemb:
+                    self.canvas.itemconfig(item, fill=colour)
+        if self.currspecial.get() == 'AT skew':
+            if self.contigDict[contig].orient[dupnum]:
+                atskew = self.contigDict[contig].atskew
+            else:
+                atskew = - self.contigDict[contig].atskew
+            if atskew <= self.skewmin.get():
+                colour = '#9933CC'
+            elif atskew >= self.skewmax.get():
+                colour = '#CC0000'
+            else:
+                ratio = (atskew - self.skewmin.get()) / (self.skewmax.get() - self.skewmin.get())
+                colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+            itema = self.canvas.find_withtag(thetag)
+            itemb = self.canvas.find_withtag('contig')
+            for item in itema:
+                if item in itemb:
+                    self.canvas.itemconfig(item, fill=colour)
         starttag = thetag + 's'
         bb = self.canvas.coords(thetag)
         start, end = bb[0], bb[2]
@@ -632,10 +887,12 @@ class App:
                                 x[6], x[7], x[10], x[11], x[10], x[11], (newx2 + x[10]) / 2, abs(newx2 - x[10]) /4 + (x[1] + x[7]) / 2,
                                 newx2, x[17], newx2, x[17])
             thecolour = self.canvas.itemcget(i, "fill")
-            if thecolour == "#F85931":
-                thecolour = "#EDB92E"
+            if thecolour.startswith('#ff'):
+                ratio = (131 - int(thecolour[5:], 16)) * 1.0 / 131
+                thecolour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
             else:
-                thecolour = "#F85931"
+                ratio = (168 - int(thecolour[1:3], 16)) * 1.0 / 168
+                thecolour = '#%02x%02x%02x' % (255, 216 - int(ratio * 80), 131 - int(ratio * 131))
             self.canvas.itemconfig(i, fill=thecolour)
         htag = thetag + 'se'
         selfhits = self.canvas.find_withtag(htag)
@@ -647,10 +904,12 @@ class App:
                                 newx1, x[7], newx2, x[11], newx2, x[11], (x[16] + newx2) / 2,
                                 abs(x[16] - (newx2)) /4 + (x[1] + x[7]) / 2, x[16], x[17], x[16], x[17])
             thecolour = self.canvas.itemcget(i, "fill")
-            if thecolour == "#F85931":
-                thecolour = "#EDB92E"
+            if thecolour.startswith('#ff'):
+                ratio = (131 - int(thecolour[5:], 16)) * 1.0 / 131
+                thecolour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
             else:
-                thecolour = "#F85931"
+                ratio = (168 - int(thecolour[1:3], 16)) * 1.0 / 168
+                thecolour = '#%02x%02x%02x' % (255, 216 - int(ratio * 80), 131 - int(ratio * 131))
             self.canvas.itemconfig(i, fill=thecolour)
         endtag = thetag + 'b'
         bhits = self.canvas.find_withtag(endtag)
@@ -659,20 +918,24 @@ class App:
                 x = self.canvas.coords(i)
                 self.canvas.coords(i, end - (x[0] - start), x[1], end - (x[2] - start), x[3], x[4], x[5], x[6], x[7])
                 thecolour = self.canvas.itemcget(i, "fill")
-                if thecolour == "#F85931":
-                    thecolour = "#EDB92E"
+                if thecolour.startswith('#ff'):
+                    ratio = (131 - int(thecolour[5:], 16)) * 1.0 / 131
+                    thecolour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
                 else:
-                    thecolour = "#F85931"
+                    ratio = (168 - int(thecolour[1:3], 16)) * 1.0 / 168
+                    thecolour = '#%02x%02x%02x' % (255, 216 - int(ratio * 80), 131 - int(ratio * 131))
                 self.canvas.itemconfig(i, fill=thecolour)
         else:
             for i in bhits:
                 x = self.canvas.coords(i)
                 self.canvas.coords(i, x[0], x[1], x[2], x[3], end - (x[4] - start), x[5], end - (x[6] - start), x[7])
                 thecolour = self.canvas.itemcget(i, "fill")
-                if thecolour == "#F85931":
-                    thecolour = "#EDB92E"
+                if thecolour.startswith('#ff'):
+                    ratio = (131 - int(thecolour[5:], 16)) * 1.0 / 131
+                    thecolour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
                 else:
-                    thecolour = "#F85931"
+                    ratio = (168 - int(thecolour[1:3], 16)) * 1.0 / 168
+                    thecolour = '#%02x%02x%02x' % (255, 216 - int(ratio * 80), 131 - int(ratio * 131))
                 self.canvas.itemconfig(i, fill=thecolour)
         texttag = thetag + 't'
         try:
@@ -691,11 +954,11 @@ class App:
         except IndexError:
             pass
 
-
-
-
-    def duplicate_contig(self):
-        thetag = self.rctag
+    def duplicate_contig(self, zecontig=None, zecoords=None):
+        if zecontig == None:
+            thetag = self.rctag
+        else:
+            thetag = 'c' + zecontig
         contig = self.canvas.find_withtag(thetag)
         if self.rctag[0] == 'r':
             return
@@ -706,11 +969,16 @@ class App:
             contigtag = thetag[1:]
             dupnum = 0
         bb = self.canvas.coords(contig[0])
+        if not zecoords is None:
+            modx = zecoords[0] - bb[0]
+            mody = zecoords[1] - bb[1]
+        else:
+            modx = int(1.5*self.contigheight)
+            mody = int(1.5*self.contigheight)
         newtag = 'c' + contigtag + '_dup' + str(self.contigDict[contigtag].dupnumber)
         self.visible.add(newtag[1:])
         self.contigDict[contigtag].dupnumber += 1
         self.contigDict[contigtag].orient.append(self.contigDict[contigtag].orient[dupnum])
-        mod = int(1.5*self.contigheight)
         btag = thetag + 'b'
         bhits = self.canvas.find_withtag(btag)
         if btag[0] == 'r':
@@ -719,33 +987,47 @@ class App:
             for i in bhits:
                 x = self.canvas.coords(i)
                 colour = self.canvas.itemcget(i, "fill")
-                self.canvas.create_polygon(x[0], x[1], x[2], x[3], x[4] + mod, x[5] + mod, x[6] + mod, x[7] + mod, \
+                self.canvas.create_polygon(x[0], x[1], x[2], x[3], x[4] + modx, x[5] + mody, x[6] + modx, x[7] + mody, \
                                            fill=colour, outline="black", tags=(newtag + 'b', self.canvas.gettags(i)[1], 'blast', self.canvas.gettags(i)[-1]))
-        self.canvas.create_rectangle(bb[0] + mod, bb[1] + mod, bb[2] + mod, bb[3] + mod, fill='#009989', tags=(newtag, 'contig', 'map'))
-        htag = thetag + 'h'
-        selfhits = self.canvas.find_withtag(htag)
-        for i in selfhits:
+        colour = self.canvas.itemcget(thetag, "fill")
+        self.canvas.create_rectangle(bb[0] + modx, bb[1] + mody, bb[2] + modx, bb[3] + mody, fill=colour, tags=(newtag, 'contig', 'map'))
+        starttag = thetag + 'ss'
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
             colour = self.canvas.itemcget(i, "fill")
+            thetags = self.canvas.itemcget(i, "tags")
             x = self.canvas.coords(i)
-            self.canvas.create_rectangle(x[0] + mod, x[1] + mod, x[2] + mod, x[3] + mod, fill=colour, tags=(newtag, 'sblast', 'map', newtag + 'h'))
+            self.canvas.create_polygon(x[0] + modx, x[1] + mody, x[0] + modx, x[1] + mody, (x[0] + modx + x[6]) / 2, abs(x[0] + modx - x[6]) /4 + (x[1] + mody + x[7]) / 2, x[6], x[7],
+                                x[6], x[7], x[10], x[11], x[10], x[11], (x[16] + modx + x[10]) / 2, abs(x[16] + modx - x[10]) /4 + (x[1] + mody + x[7]) / 2,
+                                x[16] + modx, x[17] + mody, x[16] + modx, x[17] + mody, smooth=1, fill=colour, outline='black', tags=(newtag + 'ss', thetags[0], thetags[2], thetags[3]))
+        endtag = thetag + 'se'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            colour = self.canvas.itemcget(i, "fill")
+            thetags = self.canvas.itemcget(i, "tags")
+            x = self.canvas.coords(i)
+            self.canvas.coords(i, x[0], x[1], x[0], x[1], (x[0] + x[6] + modx) / 2, abs(x[0] - (x[6] + modx)) /4 + (x[1] + x[7] + mody) / 2, x[6] + modx, x[7] + mody,
+                                x[6] + modx, x[7] + mody, x[10] + modx, x[11] + mody, x[10] + modx, x[11] + mody, (x[16] + x[10] + modx) / 2,
+                                abs(x[16] - (x[10] + modx)) /4 + (x[1] + x[7] + mody) / 2, x[16], x[17], x[16], x[17], smooth=1, fill=colour, outline='black',
+                                tags=(thetags[0], newtag + 'se', thetags[2], thetags[3]))
         starttag = thetag + 's'
         arcs= self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            self.canvas.create_line(x[0] + mod, x[1] + mod, (x[0] + mod + x[4]) / 2, abs(x[0] + mod - x[4]) / 4 + (x[1] + mod + x[5]) / 2, x[4], x[5],\
+            self.canvas.create_line(x[0] + modx, x[1] + mody, (x[0] + modx + x[4]) / 2, abs(x[0] + modx - x[4]) / 4 + (x[1] + mody + x[5]) / 2, x[4], x[5],\
                                      smooth=True, width=3, tags=(newtag + 's', self.canvas.gettags(i)[1] , 'arc'))
         endtag = thetag + 'e'
         arcs= self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            self.canvas.create_line(x[0], x[1], (x[0] + x[4] + mod) / 2, abs(x[0] - x[4] - mod) / 4 + (x[1] + x[5] + mod) / 2, x[4] + mod, x[5] + mod,\
+            self.canvas.create_line(x[0], x[1], (x[0] + x[4] + modx) / 2, abs(x[0] - x[4] - modx) / 4 + (x[1] + x[5] + mody) / 2, x[4] + modx, x[5] + mody,\
                                     smooth=True, width=3, tags=(self.canvas.gettags(i)[0], newtag + 'e', 'arc'))
         texttag = thetag + 't'
         try:
             textitem = self.canvas.find_withtag(texttag)[0]
             thetext = self.canvas.itemcget(textitem, "text")
             x = self.canvas.coords(textitem)
-            self.canvas.create_text(x[0] + mod, x[1] + mod, fill='white', font=self.customFont,
+            self.canvas.create_text(x[0] + modx, x[1] + mody, fill='white', font=self.customFont,
                                     anchor=W, text=thetext, tags=(newtag, 'map', 'text', newtag + 't'))
         except IndexError:
             pass
@@ -770,7 +1052,50 @@ class App:
                             y2 = self.contigDict[i].ypos + self.contigheight + 10
                             placed = True
                         break
-            self.canvas.create_rectangle(x1, y1, x2, y2, fill="#009989", tags=('c' + i, 'contig', 'map'))
+            if self.currspecial.get() == 'GC content':
+                gccontent = self.contigDict[i].gccontent
+                if gccontent <= self.gcmin.get():
+                    colour = '#9933CC'
+                elif gccontent >= self.gcmax.get():
+                    colour = '#CC0000'
+                else:
+                    ratio = (gccontent - self.gcmin.get()) / (self.gcmax.get() - self.gcmin.get())
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+            elif self.currspecial.get() == 'GC skew':
+                gcskew = self.contigDict[i].gcskew
+                if gcskew <= self.skewmin.get():
+                    colour = '#9933CC'
+                elif gcskew >= self.skewmax.get():
+                    colour = '#CC0000'
+                else:
+                    ratio = (gcskew - self.skewmin.get()) / (self.skewmax.get() - self.skewmin.get())
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+            elif self.currspecial.get() == 'AT skew':
+                atskew = self.contigDict[i].atskew
+                if atskew <= self.skewmin.get():
+                    colour = '#9933CC'
+                elif atskew >= self.skewmax.get():
+                    colour = '#CC0000'
+                else:
+                    ratio = (atskew - self.skewmin.get()) / (self.skewmax.get() - self.skewmin.get())
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+            elif self.currspecial.get() == 'Coverage':
+                coverage = self.contigDict[i].coverage
+                if coverage <= self.covmin.get() or coverage == 'N/A':
+                    colour = '#9933CC'
+                elif coverage >= self.covmax.get():
+                    colour = '#CC0000'
+                else:
+                    if self.covlog.get() == 0:
+                        ratio = (coverage - self.covmin.get()) / (self.covmax.get() - self.covmin.get())
+                    else:
+                        ratio = (math.log10(coverage) - math.log10(self.covmin.get())) / (math.log10(self.covmax.get()) - math.log10(self.covmin.get()))
+                    colour = '#%02x%02x%02x' % (int(ratio * 51) + 153, 51 - int(ratio * 51), 204 - int(ratio * 204))
+            elif self.currspecial.get() == 'Custom':
+                colour = self.contigDict[i].customcol
+            elif self.currspecial.get() == 'None':
+                colour = '#9933CC'
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=('c' + i, 'contig', 'map'))
             if self.contigDict[i].orient[0]:
                 dir = '+'
             else:
@@ -843,6 +1168,14 @@ class App:
         contig = tkSimpleDialog.askstring('Add Contig', 'Contig name')
         if contig is None:
             return
+        if not contig in self.contigDict:
+            for i in self.contigDict:
+                if self.contigDict[i].shortname == contig:
+                    contig = i
+                    break
+            if contig != i:
+                tkMessageBox.showerror('Contig not found.', 'Please try again.')
+                return
         if contig in self.visible:
             self.goto(contig)
         else:
@@ -874,7 +1207,7 @@ class App:
                     self.contigDict[i[0]].ypos = starty
                     self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
                     self.add_contig(i[0])
-                    starty += 35
+                    starty += self.contigheight + 10
         else:
             for i in self.contigDict[contig].fr:
                 if not i[0] in self.visible:
@@ -883,11 +1216,189 @@ class App:
                     self.contigDict[i[0]].ypos = starty
                     self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
                     self.add_contig(i[0])
-                    starty += 35
+                    starty += self.contigheight + 10
+
+    def move_contig(self, contig, x, y):
+        thetag = 'c' + contig
+        thecoords = self.canvas.coords(thetag)
+        diffx = x - thecoords[0]
+        diffy = y - thecoords[1]
+        self.oldx = x
+        self.oldy = y
+        self.canvas.move(thetag, diffx, diffy)
+        starttag = thetag + 's'
+        arcs= self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            self.canvas.coords(i, x[0] + diffx, x[1] + diffy, x[2] + diffx/2, abs(x[0] + diffx - x[4]) / 4 + (x[1] + diffy + x[5]) / 2, x[4], x[5])
+        endtag = thetag + 'e'
+        arcs= self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            self.canvas.coords(i, x[0], x[1], x[2] + diffx/2, abs(x[0] - (x[4] + diffx)) / 4 + (x[1] + x[5] + diffy) / 2, x[4] + diffx, x[5] + diffy)
+        endtag = thetag + 'b'
+        arcs= self.canvas.find_withtag(endtag)
+        if endtag[0] == 'r':
+            for i in arcs:
+                x = self.canvas.coords(i)
+                self.canvas.coords(i, x[0] + diffx, x[1] + diffy, x[2] + diffx, x[3] + diffy, x[4], x[5], x[6], x[7])
+        else:
+            for i in arcs:
+                x = self.canvas.coords(i)
+                self.canvas.coords(i, x[0], x[1], x[2], x[3], x[4] + diffx, x[5] + diffy, x[6] + diffx, x[7] + diffy)
+        starttag = thetag + 'ss'
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            self.canvas.coords(i, x[0] + diffx, x[1] + diffy, x[0] + diffx, x[1] + diffy, (x[0] + diffx + x[6]) / 2, abs(x[0] + diffx - x[6]) /4 + (x[1] + diffy + x[7]) / 2, x[6], x[7],
+                                x[6], x[7], x[10], x[11], x[10], x[11], (x[16] + diffx + x[10]) / 2, abs(x[16] + diffx - x[10]) /4 + (x[1] + diffy + x[7]) / 2,
+                                x[16] + diffx, x[17] + diffy, x[16] + diffx, x[17] + diffy)
+        endtag = thetag + 'se'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            self.canvas.coords(i, x[0], x[1], x[0], x[1], (x[0] + x[6] + diffx) / 2, abs(x[0] - (x[6] + diffx)) /4 + (x[1] + x[7] + diffy) / 2, x[6] + diffx, x[7] + diffy,
+                                x[6] + diffx, x[7] + diffy, x[10] + diffx, x[11] + diffy, x[10] + diffx, x[11] + diffy, (x[16] + x[10] + diffx) / 2,
+                                abs(x[16] - (x[10] + diffx)) /4 + (x[1] + x[7] + diffy) / 2, x[16], x[17], x[16], x[17])
+
+    def move_to(self):
+        thetag = self.rctag
+        if '_dup' in thetag:
+            contig = thetag.split('_dup')[0][1:]
+            dupnum = int(thetag.split('_dup')[1])
+        else:
+            contig = thetag[1:]
+            dupnum = 0
+        coords = self.canvas.coords(thetag)
+        startx = coords[2] + 10
+        starty = coords[1]
+        if self.contigDict[contig].orient[dupnum]:
+            for i in self.contigDict[contig].to:
+                if i[0] in self.visible:
+                    self.move_contig(i[0], startx, starty)
+                    starty += self.contigheight + 10
+        else:
+            for i in self.contigDict[contig].fr:
+                if i[0] in self.visible:
+                    self.move_contig(i[0], startx, starty)
+                    starty += self.contigheight + 10
+
+    def dupe_to(self):
+        thetag = self.rctag
+        if '_dup' in thetag:
+            contig = thetag.split('_dup')[0][1:]
+            dupnum = int(thetag.split('_dup')[1])
+        else:
+            contig = thetag[1:]
+            dupnum = 0
+        coords = self.canvas.coords(thetag)
+        startx = coords[2] + 10
+        starty = coords[1]
+        if self.contigDict[contig].orient[dupnum]:
+            for i in self.contigDict[contig].to:
+                if i[0] in self.visible:
+                    self.duplicate_contig(i[0], (startx, starty))
+                else:
+                    self.contigDict[i[0]].xpos = startx
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.add_contig(i[0])
+                starty += self.contigheight + 10
+        else:
+            for i in self.contigDict[contig].fr:
+                if i[0] in self.visible:
+                    self.duplicate_contig(i[0], (startx, starty))
+                else:
+                    self.contigDict[i[0]].xpos = startx
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.add_contig(i[0])
+                starty += self.contigheight + 10
+
+    def to_black(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[2]:
+                self.canvas.itemconfig(i, fill='black')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[2]:
+                self.canvas.itemconfig(i, fill='black')
+
+    def to_red(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[2]:
+                self.canvas.itemconfig(i, fill='red')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[2]:
+                self.canvas.itemconfig(i, fill='red')
+
+    def to_blue(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[2]:
+                self.canvas.itemconfig(i, fill='blue')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[2]:
+                self.canvas.itemconfig(i, fill='blue')
+
+    def to_green(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[2]:
+                self.canvas.itemconfig(i, fill='green')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[2]:
+                self.canvas.itemconfig(i, fill='green')
+
+    def to_yellow(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[2]:
+                self.canvas.itemconfig(i, fill='green')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[2]:
+                self.canvas.itemconfig(i, fill='green')
 
 
-
-    def show_from(self):
+    def show_fr(self):
         thetag = self.rctag
         if '_dup' in thetag:
             contig = thetag.split('_dup')[0][1:]
@@ -906,7 +1417,7 @@ class App:
                     self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
                     self.contigDict[i[0]].xpos = startx - 10 - self.contigDict[i[0]].xlength
                     self.add_contig(contig)
-                    starty += 35
+                    starty += self.contigheight + 10
         else:
             for i in self.contigDict[contig].fr:
                 if not i[0] in self.visible:
@@ -915,7 +1426,128 @@ class App:
                     self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
                     self.contigDict[i[0]].xpos = startx - 10 - self.contigDict[i[0]].xlength
                     self.add_contig(i[0])
-                    starty += 35
+                    starty += self.contigheight + 10
+
+    def move_fr(self):
+        thetag = self.rctag
+        if '_dup' in thetag:
+            contig = thetag.split('_dup')[0][1:]
+            dupnum = int(thetag.split('_dup')[1])
+        else:
+            contig = thetag[1:]
+            dupnum = 0
+        coords = self.canvas.coords(thetag)
+        startx = coords[0]
+        starty = coords[1]
+        if self.contigDict[contig].orient[dupnum]:
+            for i in self.contigDict[contig].fr:
+                if i[0] in self.visible:
+                    self.move_contig(i[0], startx  - 10 - self.contigDict[i[0]].xlength, starty)
+                    starty += self.contigheight + 10
+        else:
+            for i in self.contigDict[contig].to:
+                if i[0] in self.visible:
+                    self.move_contig(i[0], startx  - 10 - self.contigDict[i[0]].xlength, starty)
+                    starty += self.contigheight + 10
+
+    def dupe_fr(self):
+        thetag = self.rctag
+        if '_dup' in thetag:
+            contig = thetag.split('_dup')[0][1:]
+            dupnum = int(thetag.split('_dup')[1])
+        else:
+            contig = thetag[1:]
+            dupnum = 0
+        coords = self.canvas.coords(thetag)
+        startx = coords[0]
+        starty = coords[1]
+        if self.contigDict[contig].orient[dupnum]:
+            for i in self.contigDict[contig].fr:
+                if i[0] in self.visible:
+                    self.duplicate_contig(i[0], (startx - 10 - self.contigDict[i[0]].xlength, starty))
+                else:
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].xpos = startx
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.add_contig(i[0])
+                starty += self.contigheight + 10
+        else:
+            for i in self.contigDict[contig].to:
+                if i[0] in self.visible:
+                    self.duplicate_contig(i[0], (startx - 10 - self.contigDict[i[0]].xlength, starty))
+                else:
+                    self.contigDict[i[0]].visible = True
+                    self.contigDict[i[0]].xpos = startx
+                    self.contigDict[i[0]].ypos = starty
+                    self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
+                    self.add_contig(i[0])
+                starty += self.contigheight + 10
+
+    def fr_black(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[0]:
+                self.canvas.itemconfig(i, fill='black')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[0]:
+                self.canvas.itemconfig(i, fill='black')
+
+
+    def fr_red(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[0]:
+                self.canvas.itemconfig(i, fill='red')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[0]:
+                self.canvas.itemconfig(i, fill='red')
+
+    def fr_blue(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[0]:
+                self.canvas.itemconfig(i, fill='blue')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[0]:
+                self.canvas.itemconfig(i, fill='blue')
+
+    def fr_green(self):
+        thetag = self.rctag
+        starttag = thetag + 's'
+        bbox = self.canvas.coords(thetag)
+        arcs = self.canvas.find_withtag(starttag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[0] == bbox[0]:
+                self.canvas.itemconfig(i, fill='green')
+        endtag = thetag + 'e'
+        arcs = self.canvas.find_withtag(endtag)
+        for i in arcs:
+            x = self.canvas.coords(i)
+            if x[4] == bbox[0]:
+                self.canvas.itemconfig(i, fill='green')
 
     def find_contig(self):
         contig = tkSimpleDialog.askstring('Find Contig', 'Contig name')
@@ -925,6 +1557,9 @@ class App:
                     if self.contigDict[i].shortname == contig:
                         contig = i
                         break
+                if contig != i:
+                    tkMessageBox.showerror('Contig not found.', 'Please try again.')
+                    return
             self.goto(contig)
 
     def goto(self, contig):
@@ -1005,18 +1640,18 @@ class App:
                     dir = '-'
                 textcoords = self.canvas.coords(z)
                 textend = self.canvas.bbox(z)[2]
-                contigend = self.canvas.coords('c' + i)[2]
+                contigend = self.canvas.coords(contigtag)[2]
                 if textend >= contigend - 2:
                     self.canvas.delete(z)
                     thetext = self.contigDict[i].shortname + ' ' + dir
                     text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
-                                                   anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                                                   anchor=W, text=thetext, tags=(contigtag, 'map', 'text', contigtag + 't'))
                     textend = self.canvas.bbox(text)[2]
                     if textend >= contigend - 2:
                         self.canvas.delete(text)
                         thetext = self.contigDict[i].shortname
                         text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
-                                                       anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                                                       anchor=W, text=thetext, tags=(contigtag, 'map', 'text', contigtag + 't'))
                         textend = self.canvas.bbox(text)[2]
                         if textend >= contigend:
                             self.canvas.delete(text)
@@ -1046,22 +1681,22 @@ class App:
                     dir = '-'
                 length = self.contigDict[i].strlen
                 textcoords = (self.canvas.coords(z)[0] + 2, (self.canvas.coords(z)[1] + self.canvas.coords(z)[3]) /2)
-                contigend = self.canvas.coords('c' + i)[2]
+                contigend = self.canvas.coords(z)[2]
                 thetext = self.contigDict[i].shortname + ' ' + dir + ' ' + length
                 text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
-                                                anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                                                anchor=W, text=thetext, tags=(contigtag, 'map', 'text', contigtag + 't'))
                 textend = self.canvas.bbox(text)[2]
                 if textend >= contigend - 2:
                     self.canvas.delete(text)
                     thetext = self.contigDict[i].shortname + ' ' + dir
                     text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
-                                                   anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                                                   anchor=W, text=thetext, tags=(contigtag, 'map', 'text', contigtag + 't'))
                     textend = self.canvas.bbox(text)[2]
                     if textend >= contigend - 2:
                         self.canvas.delete(text)
                         thetext = self.contigDict[i].shortname
                         text = self.canvas.create_text(textcoords[0], textcoords[1], fill='white', font=self.customFont,
-                                                       anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
+                                                       anchor=W, text=thetext, tags=('c' + i, 'map', 'text', contigtag + 't'))
                         textend = self.canvas.bbox(text)[2]
                         if textend >= contigend - 2:
                             self.canvas.delete(text)
@@ -1196,14 +1831,12 @@ class App:
         getseq = False
         edgedict = {}
         name = None
-        longname = {}
         for line in ace:
             if line.startswith('CO '):
                 if not name is None:
                     coverage = totalbase * 1.0 / len(seq)
                     aninstance = contig(name, shortname, seq, None, coverage)
                     self.contigDict[name] = aninstance
-                    longname[shortname] = name
                 name = line.split()[1]
                 shortname = str(int(name[6:]))
                 totalbase = 0
@@ -1213,18 +1846,24 @@ class App:
                 getseq = False
             elif line.startswith('AF '):
                 readname = line.split()[1]
-                if '.to' in readname:
-                    to = readname.split('.to')[1]
-                    to = to.split('.')[0]
-                    if not shortname in edgedict:
-                        edgedict[shortname] = (set(), set())
-                    edgedict[shortname][1].add(to)
-                if '.fm' in readname:
-                    fm = readname.split('.fm')[1]
-                    fm = fm.split('.')[0]
-                    if not shortname in edgedict:
-                        edgedict[shortname] = (set(), set())
-                    edgedict[shortname][0].add(fm)
+                if '.to' in readname and '.fr' in readname:
+                    pass
+                elif '.to' in readname:
+                    readname = readname.split('.')[0]
+                    if readname in edgedict:
+                        if not (name, True, edgedict[readname][0], edgedict[readname][1], 0) in self.edgelist and not \
+                                    (edgedict[readname][0], not edgedict[readname][1], name, False, 0) in self.edgelist:
+                            self.edgelist.append((name, True, edgedict[readname][0], edgedict[readname][1], 0))
+                    else:
+                        edgedict[readname] = [name, False]
+                elif '.fm' in readname:
+                    readname = readname.split('.')[0]
+                    if readname in edgedict:
+                        if not (name, False, edgedict[readname][0], edgedict[readname][1], 0) in self.edgelist and not \
+                                    (edgedict[readname][0], not edgedict[readname][1], name, True, 0) in self.edgelist:
+                            self.edgelist.append((name, False, edgedict[readname][0], edgedict[readname][1], 0))
+                    else:
+                        edgedict[readname] = [name, True]
             elif getseq:
                 seq += line.rstrip().replace('*', '').upper()
             elif line.startswith('QA '):
@@ -1232,22 +1871,6 @@ class App:
         coverage = totalbase * 1.0 / len(seq)
         aninstance = contig(name, shortname, seq, None, coverage)
         self.contigDict[name] = aninstance
-        longname[shortname] = name
-        for i in edgedict:
-            for j in edgedict[i][0]:
-                if i in edgedict[j][0]:
-                    if not (i, False, j, True, 0) in self.edgelist and not (j, True, i, False, 0) in self.edgelist:
-                        self.edgelist.append((longname[i], False, longname[j], True, 0))
-                if i in edgedict[j][1]:
-                    if not (i, False, j, False, 0) in self.edgelist and not (j, True, i, True, 0) in self.edgelist:
-                        self.edgelist.append((longname[i], False, longname[j], False, 0))
-            for j in edgedict[i][1]:
-                if i in edgedict[j][0]:
-                    if not (i, True, j, True, 0) in self.edgelist and not (j, False, i, False, 0) in self.edgelist:
-                        self.edgelist.append((longname[i], True, longname[j], True, 0))
-                if i in edgedict[j][1]:
-                    if not (i, True, j, False, 0) in self.edgelist and not (j, False, i, True, 0) in self.edgelist:
-                        self.edgelist.append((longname[i], True, longname[j], False, 0))
         for i in self.edgelist:
             contiga, dira, contigb, dirb, overlap = i
             if dira and dirb:
@@ -1413,8 +2036,13 @@ class App:
         csag = open(self.csagfile.get())
         for line in csag:
             if line.split()[0] == 'NODE':
-                title, entry, name, seq = line.split()
-                aninstance = contig(entry, name, seq)
+                if len(line.split()) == 4:
+                    title, entry, name, seq = line.split()
+                    aninstance = contig(entry, name, seq)
+                else:
+                    title, entry, name, coverage, seq = line.split()
+                    coverage = float(coverage)
+                    aninstance = contig(entry, name, seq, None, coverage)
                 self.contigDict[entry] = aninstance
             elif line.split()[0] == 'EDGE':
                 title, n1, d1, n2, d2, overlap = line.split()
@@ -1509,6 +2137,55 @@ class App:
         except Queue.Empty:
             return False
 
+    def colour_options(self):
+        try:
+            self.colour_options_top.destroy()
+        except AttributeError:
+            pass
+        self.colour_options_top = Toplevel()
+        self.colour_options_top.grab_set()
+        self.colour_options_top.wm_attributes("-topmost", 1)
+        x = root.winfo_rootx() + 15
+        y = root.winfo_rooty() - 20
+        geom = "+%d+%d" % (x,y)
+        self.colour_options_top.geometry(geom)
+        self.colour_options_frame = Frame(self.colour_options_top)
+        self.gcminlabel = Label(self.colour_options_frame, text='GC content min:')
+        self.gcminlabel.grid(row=0, column=0, sticky=E)
+        self.gcminentry = Entry(self.colour_options_frame, textvariable=self.gcmin)
+        self.gcminentry.grid(row=0, column=1)
+        self.gcmaxlabel = Label(self.colour_options_frame, text='GC content max:')
+        self.gcmaxlabel.grid(row=1, column=0, sticky=E)
+        self.gcmaxentry = Entry(self.colour_options_frame, textvariable=self.gcmax)
+        self.gcmaxentry.grid(row=1, column=1)
+        self.skewminlabel = Label(self.colour_options_frame, text='Skew min:')
+        self.skewminlabel.grid(row=2, column=0, sticky=E)
+        self.skewminentry = Entry(self.colour_options_frame, textvariable=self.skewmin)
+        self.skewminentry.grid(row=2, column=1)
+        self.skewmaxlabel = Label(self.colour_options_frame, text='Skew max:')
+        self.skewmaxlabel.grid(row=3, column=0, sticky=E)
+        self.skewmaxentry = Entry(self.colour_options_frame, textvariable=self.skewmax)
+        self.skewmaxentry.grid(row=3, column=1)
+        self.covminlabel = Label(self.colour_options_frame, text='Coverage min:')
+        self.covminlabel.grid(row=4, column=0, sticky=E)
+        self.covminentry = Entry(self.colour_options_frame, textvariable=self.covmin)
+        self.covminentry.grid(row=4, column=1)
+        self.covmaxlabel = Label(self.colour_options_frame, text='Coverage max:')
+        self.covmaxlabel.grid(row=5, column=0, sticky=E)
+        self.covmaxentry = Entry(self.colour_options_frame, textvariable=self.covmax)
+        self.covmaxentry.grid(row=5, column=1)
+        self.covloglabel = Label(self.colour_options_frame, text='Log coverage:')
+        self.covloglabel.grid(row=6, column=0, sticky=E)
+        self.covlogentry = Checkbutton(self.colour_options_frame, variable=self.covlog)
+        self.covlogentry.grid(row=6, column=1)
+        self.okcolour = Button(self.colour_options_frame, text='Ok', command=self.ok_colour)
+        self.okcolour.grid(row=7, column=2, sticky=E)
+        self.colour_options_frame.grid(padx=10, pady=10)
+
+    def ok_colour(self):
+        self.colour_options_top.destroy()
+        self.changespecial(self.currspecial.get())
+
     def create_edges(self):
         try:
             self.create_edges_top.destroy()
@@ -1519,21 +2196,21 @@ class App:
         self.create_edges_top.wm_attributes("-topmost", 1)
         self.create_edges_top.geometry('+20+30')
         self.create_edges_top.title('Create CSAG')
-        self.create_edges = Frame(self.create_edges_top)
-        self.contigfilelabel = Label(self.create_edges, text='Contig file:')
+        self.create_edges_frame = Frame(self.create_edges_top)
+        self.contigfilelabel = Label(self.create_edges_frame, text='Contig file:')
         self.contigfilelabel.grid(row=0, column=0, sticky=E)
-        self.contigfileentry = Entry(self.create_edges, textvariable=self.contigfile, justify=RIGHT, width=30)
+        self.contigfileentry = Entry(self.create_edges_frame, textvariable=self.contigfile, justify=RIGHT, width=30)
         self.contigfileentry.grid(row=0, column=1)
-        self.contigfileentrybutton = Button(self.create_edges, text='...', command=self.loadcontig)
+        self.contigfileentrybutton = Button(self.create_edges_frame, text='...', command=self.loadcontig)
         self.contigfileentrybutton.grid(row=0, column=2)
-        self.readfilelabel = Label(self.create_edges, text='Read file:')
+        self.readfilelabel = Label(self.create_edges_frame, text='Read file:')
         self.readfilelabel.grid(row=1, column=0, sticky=E)
-        self.readfileentry = Entry(self.create_edges, textvariable=self.readfile, justify=RIGHT, width=30)
+        self.readfileentry = Entry(self.create_edges_frame, textvariable=self.readfile, justify=RIGHT, width=30)
         self.readfileentry.grid(row=1, column=1)
-        self.readfileentrybutton = Button(self.create_edges, text='...', command=self.loadread)
+        self.readfileentrybutton = Button(self.create_edges_frame, text='...', command=self.loadread)
         self.readfileentrybutton.grid(row=1, column=2)
-        self.create_edges.grid(padx=10, pady=10)
-        self.overlapEdges = Frame(self.create_edges, relief=SUNKEN, bd=2)
+        self.create_edges_frame.grid(padx=10, pady=10)
+        self.overlapEdges = Frame(self.create_edges_frame, relief=SUNKEN, bd=2)
         self.overlapEdges.grid(row=2, column=0, padx=5, pady=3, sticky=EW, columnspan=3)
         self.getOverlapLabel = Label(self.overlapEdges, text='Get overlapping edges:', width=30, anchor=E)
         self.getOverlapLabel.grid(row=0, column=0)
@@ -1547,7 +2224,7 @@ class App:
         self.maxmmlabel.grid(row=2, column=0)
         self.maxmmentry = Entry(self.overlapEdges, textvariable=self.maxmm)
         self.maxmmentry.grid(row=2, column=1, sticky=W)
-        self.dbEdges = Frame(self.create_edges, relief=SUNKEN, bd=2)
+        self.dbEdges = Frame(self.create_edges_frame, relief=SUNKEN, bd=2)
         self.dbEdges.grid(row=3, column=0, padx=5, pady=3, sticky=EW, columnspan=3)
         self.getdblabel = Label(self.dbEdges, text='Get de bruijn edges:', width=30, anchor=E)
         self.getdblabel.grid(row=0, column=0)
@@ -1573,7 +2250,7 @@ class App:
         self.nmeravelabel.grid(row=5, column=0)
         self.nmeraveentry = Entry(self.dbEdges, textvariable = self.nmerave)
         self.nmeraveentry.grid(row=5, column=1)
-        self.pairedEdges = Frame(self.create_edges, relief=SUNKEN, bd=2)
+        self.pairedEdges = Frame(self.create_edges_frame, relief=SUNKEN, bd=2)
         self.pairedEdges.grid(row=4, column=0, padx=5, pady=3, sticky=NSEW, columnspan=3)
         self.getPairedlabel = Label(self.pairedEdges, text='Get edges using paired reads:', width=30, anchor=E)
         self.getPairedlabel.grid(row=0, column=0)
@@ -1595,7 +2272,7 @@ class App:
         self.minpairedgelabel.grid(row=4, column=0)
         self.minpairedgeentry = Entry(self.pairedEdges, textvariable=self.minpairedge)
         self.minpairedgeentry.grid(row=4, column=1)
-        #self.longEdges = Frame(self.create_edges, relief=SUNKEN, bd=2)
+        #self.longEdges = Frame(self.create_edges_frame, relief=SUNKEN, bd=2)
         #self.longEdges.grid(row=7, column=0, padx=5, pady=3, sticky=NSEW, columnspan=3)
         #self.getLonglabel = Label(self.longEdges, text='Get edges using long reads:')
         #self.getLonglabel.grid(row=0, column=0)
@@ -1613,7 +2290,7 @@ class App:
         #self.minlongidentlabel.grid(row=3, column=0)
         #self.minlongidententry = Entry(self.longEdges, textvariable=self.minlongident)
         #self.minlongidententry.grid(row=3, column=1, sticky=W)
-        self.okedges = Button(self.create_edges, text='Ok', command=self.ok_edges)
+        self.okedges = Button(self.create_edges_frame, text='Ok', command=self.ok_edges)
         self.okedges.grid(row=8, column=2, sticky=E)
 
     def ok_edges(self):
@@ -1749,6 +2426,7 @@ class App:
                 self.contigDict[contigb].to.append((contiga, True, overlap))
         self.writeCSAG()
         self.queue.put('Creating CSAG finished.')
+
 
     def get_overlap_edges(self):
         minoverlap, maxmm = self.minoverlap.get(), self.maxmm.get()
@@ -1969,8 +2647,21 @@ class App:
                 return True
             if args.khmer:
                 forpaths = self.dbpathkhmer(self.contigDict[i].forseq[-nmersize:], ends)
+                self.contigDict[i].coverage = self.ht.get_median_count(self.contigDict[i].forseq.upper())[0]
             else:
                 forpaths = self.dbpath(self.contigDict[i].forseq[-nmersize:], ends)
+                ncount = []
+                for zz in range(0, len(self.contigDict[i].forseq) - nmersize):
+                    nmer = self.contigDict[i].forseq[zz:zz+nmersize]
+                    if nmer[nmersize/2] == 'A' or nmer[nmersize/2] == 'C':
+                        nmer = nmer[::-1]
+                        nmer = nmer.translate(transtab)
+                    if nmer in self.nmerdict:
+                        ncount.append(self.nmerdict[nmer])
+                    else:
+                        ncount.append(0)
+                ncount.sort()
+                self.contigDict[i].coverage = ncount[len(ncount)/2]
             for j in forpaths:
                 nmer = j[-nmersize - 20:]
                 for k in ends[nmer]:
@@ -2627,7 +3318,7 @@ class App:
     def writeCSAG(self):
         out = open(self.workingDir.get() + '/CSAG.txt', 'w')
         for i in self.contigDict:
-            out.write('NODE\t' + i + '\t' + self.contigDict[i].shortname + '\t' + self.contigDict[i].forseq + '\n')
+            out.write('NODE\t' + i + '\t' + self.contigDict[i].shortname + '\t' + str(self.contigDict[i].coverage) + '\t' + self.contigDict[i].forseq + '\n')
         for i in self.edgelist:
             if i[4] == '':
                 overlap = '.'
@@ -2755,6 +3446,7 @@ class App:
         first = True
         self.refDict = {}
         self.reforder = []
+        refout = open(self.workingDir.get() + '/reference.fa', 'w')
         for line in ref:
             if line.startswith('>'):
                 if first:
@@ -2762,15 +3454,18 @@ class App:
                 else:
                     self.refDict[name] = seq
                     self.reforder.append(name)
+                    refout.write('>' + name + '\n' + seq + '\n')
                 name = line.split()[0][1:]
                 seq = ''
             else:
                 seq += line.rstrip()
         self.refDict[name] = seq
+        refout.write('>' + name + '\n' + seq + '\n')
+        refout.close()
         self.reforder.append(name)
         if self.blastit == 'yes':
             self.queue.put('Running BLAST.')
-            subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/tempdb -in ' + self.reffile.get(), stdout=subprocess.PIPE, shell=True).wait()
+            subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/tempdb -in ' + self.workingDir.get() + '/reference.fa', stdout=subprocess.PIPE, shell=True).wait()
             subprocess.Popen('blastn -task blastn -db ' + self.workingDir.get() + '/tempdb -outfmt 6 -query ' + self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/query_tempdb.out', shell=True).wait()
             self.blastfile.set(self.workingDir.get() + '/query_tempdb.out')
             self.queue.put('BLAST file created.')
@@ -2793,6 +3488,7 @@ class App:
             for j in range(0, len(self.contigDict[i].forseq), 60):
                 contout.write(self.contigDict[i].forseq[j:j+60] + '\n')
         contout.close()
+
 
     def self_compare(self):
         try:
@@ -2950,21 +3646,22 @@ class App:
 
     def draw_self_hits(self):
         # need to add in hits for duplicates
-        self.canvas.delete('sblast')
+        self.canvas.delete('selfhit')
         hitnum = 0
         self.selfhit.sort(key=lambda x: x[3], reverse=True)
         for i in self.selfhit:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
             if query in self.visible and subject in self.visible:
                 hitnum += 1
+                ratio = (ident - self.minident.get()) / (100 - self.minident.get())
                 if rstart < rstop and self.contigDict[query].orient[0] == self.contigDict[subject].orient[0]:
-                    colour = '#F85931'
+                    colour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
                 elif rstart < rstop:
-                    colour = '#EDB92E'
+                    colour = '#%02x%02x%02x' % (255, 216 - int(ratio * 80), 131 - int(ratio * 131))
                 elif rstop < rstart and self.contigDict[query].orient[0] == self.contigDict[subject].orient[0]:
-                    colour = '#EDB92E'
+                    colour = '#%02x%02x%02x' % (255, 216 - int(ratio * 80), 131 - int(ratio * 131))
                 else:
-                    colour = '#F85931'
+                    colour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
                 qcoords = self.canvas.coords('c' + query)
                 rcoords = self.canvas.coords('c' + subject)
                 if self.contigDict[query].orient[0]:
@@ -2973,23 +3670,12 @@ class App:
                 else:
                     startx1 = qcoords[2] - qstart * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
                     startx2 = qcoords[2] - qstop * 1.0 / self.contigDict[query].length * abs(qcoords[2] - qcoords[0])
-
-                #self.canvas.create_rectangle(startx1, qcoords[1], startx2, qcoords[3],
-                #                              fill=colour, tags=('c' + query, 'sblast', 'map', 'c' + query + 'h', 'self' + str(hitnum)))
                 if self.contigDict[subject].orient[0]:
                     endx1 = rcoords[0] + rstart * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
                     endx2 = rcoords[0] + rstop * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
                 else:
                     endx1 = rcoords[2] - rstart * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
                     endx2 = rcoords[2] - rstop * 1.0 / self.contigDict[subject].length * abs(rcoords[2] - rcoords[0])
-                # self.canvas.create_rectangle(endx1, rcoords[1], endx2, rcoords[3],
-                #                               fill=colour, tags=('c' + subject, 'sblast', 'map', 'c' + subject + 'h', 'self' + str(hitnum)))
-                # starty = qcoords[1] + self.contigheight
-                # endy = rcoords[1] + self.contigheight
-                # self.canvas.create_line(startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,\
-                #                          smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
-                # self.canvas.create_line(startx2, starty, (startx2 + endx2) / 2, abs(startx2 - endx2) /4 + (starty + endy) / 2, endx2, endy,\
-                #                          smooth=True, width=1, tags=('c' + query + 's', 'c' + subject + 'e', 'arc'))
                 starty = qcoords[1] + self.contigheight / 2
                 endy = rcoords[1] + self.contigheight / 2
                 self.canvas.create_polygon(startx1, starty, startx1, starty, (startx1 + endx1) / 2, abs(startx1 - endx1) /4 + (starty + endy) / 2, endx1, endy,
@@ -3139,10 +3825,11 @@ class App:
             hitcount += 1
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
             if query in self.visible:
+                ratio = (ident - self.minident.get()) / (100 - self.minident.get())
                 if rstart < rstop:
-                    colour = '#F85931'
+                    colour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
                 else:
-                    colour = '#EDB92E'
+                    colour = '#%02x%02x%02x' % (255, 216 - int(ratio * 80), 131 - int(ratio * 131))
                 self.canvas.create_polygon(self.refpos[subject] + rstart / self.scaledown.get(), self.refline + self.contigheight,
                                            self.refpos[subject] + rstop / self.scaledown.get(), self.refline + self.contigheight,
                                             self.contigDict[query].xpos + qstop/self.contigDict[query].scaledown, self.contigline,
@@ -3155,7 +3842,7 @@ class App:
                 self.rightmost = self.refpos[i] + len(self.refDict[i]) / self.scaledown.get()
             self.canvas.create_rectangle(self.refpos[i], self.refline, \
                                          self.refpos[i] + len(self.refDict[i]) / self.scaledown.get(), self.refline + self.contigheight, \
-                                         fill="#CE1836", tags=('r' + i, "ref", "map"))
+                                         fill="#669900", tags=('r' + i, "ref", "map"))
             thetext = i
             text = self.canvas.create_text(self.refpos[i] + 2, self.refline + self.contigheight/2,\
                                             fill='white', font=self.customFont, anchor=W, text=thetext, tags=('r' + i, 'ref', 'map'))
@@ -3170,7 +3857,7 @@ class App:
                 self.rightmost = self.contigDict[i].xpos + self.contigDict[i].xlength
             self.canvas.create_rectangle(self.contigDict[i].xpos, self.contigDict[i].ypos,
                                          self.contigDict[i].xpos + self.contigDict[i].xlength, self.contigDict[i].ypos + self.contigheight,\
-                                          fill="#009989", tags=('c' + i, 'contig', 'map'))
+                                          fill="#9933CC", tags=('c' + i, 'contig', 'map'))
             if self.contigDict[i].orient[0]:
                 dir = '+'
             else:
