@@ -66,8 +66,14 @@ class contig:
         acount = self.forseq.count('A')
         tcount = self.forseq.count('T')
         self.gccontent = round((gcount + ccount) * 100.0 / self.length, 2)
-        self.gcskew = round((gcount - ccount) * 1.0 / (gcount + ccount), 2)
-        self.atskew = round((acount - tcount) * 1.0 / (acount + tcount), 2)
+        try:
+            self.gcskew = round((gcount - ccount) * 1.0 / (gcount + ccount), 2)
+        except ZeroDivisionError:
+            self.gcskew = 0
+        try:
+            self.atskew = round((acount - tcount) * 1.0 / (acount + tcount), 2)
+        except ZeroDivisionError:
+            self.atskew = 0
         self.customval = 'N/A'
         self.customcol = '#9933CC'
         self.xpos = None
@@ -102,6 +108,7 @@ class App:
             self.filemenu.add_command(label="Create comparison", command=self.create_comp)
             self.filemenu.add_separator()
             self.filemenu.add_command(label="Load assembly", command=self.load_assembly)
+            self.filemenu.add_command(label="Save image", command=self.write_canvas_ps)
             self.filemenu.add_separator()
             self.filemenu.add_command(label="Change working directory", command=self.loadwork)
             self.filemenu.add_command(label="Cancel running process", command=self.cancelprocess)
@@ -224,12 +231,34 @@ class App:
             self.canvas.tag_bind('map', '<B1-Motion>', self.dragMove)
             self.canvas.tag_bind('map', '<Button-1>', self.recordMark)
             self.canvas.tag_bind('map', '<Double-Button-1>', self.addtolist)
-            self.canvas.tag_bind('blast', '<Double-Button-1>', self.showhitblast)
-            self.canvas.tag_bind('selfhit', '<Double-Button-1>', self.showhitsblast)
+            self.canvas.tag_bind('blast', '<Button-3>', self.rcblast)
+            self.canvas.tag_bind('selfhit', '<Button-3>', self.rcblast)
+            self.blastmenu = Menu(root, tearoff=0)
+            self.querymenu = Menu(self.blastmenu, tearoff=0)
+            self.querymenu.add_command(label="Move", command=self.move_query)
+            self.querymenu.add_command(label="Goto", command=self.goto_query)
+            self.querymenu.add_command(label="Write", command=self.write_query)
+            self.subjectmenu = Menu(self.blastmenu, tearoff=0)
+            self.subjectmenu.add_command(label="Move", command=self.move_subject)
+            self.subjectmenu.add_command(label="Goto", command=self.goto_subject)
+            self.subjectmenu.add_command(label="Write", command=self.write_subject)
+            self.blastmenu.add_cascade(label="Query", menu=self.querymenu)
+            self.blastmenu.add_cascade(label="Subject", menu=self.subjectmenu)
+            self.blastmenu.add_command(label="Remove", command=self.delete_blast)
+            self.blastmenu.add_command(label="Details", command=self.showhitblast)
+            self.blastmenu.add_command(label="To front", command=self.blasttofront)
+            self.blastmenu.add_command(label="To back", command=self.blasttoback)
+            self.blasthlmenu = Menu(self.blastmenu, tearoff=0)
+            self.blasthlmenu.add_command(label='black', command=self.blast_black)
+            self.blasthlmenu.add_command(label='red', command=self.blast_red)
+            self.blasthlmenu.add_command(label='blue', command=self.blast_blue)
+            self.blasthlmenu.add_command(label='green', command=self.blast_green)
+            self.blastmenu.add_cascade(label="Highlight", menu=self.blasthlmenu)
             self.rcmenu = Menu(root, tearoff=0)
             self.rcmenu.add_command(label="Reverse", command=self.reverse_contig)
             self.rcmenu.add_command(label="Remove", command=self.remove_contig)
             self.rcmenu.add_command(label="Duplicate", command=self.duplicate_contig)
+            self.rcmenu.add_command(label="Details", command=self.contig_details)
             self.rcmenu.add_separator()
             self.tomenu = Menu(self.rcmenu, tearoff=0)
             self.tohlmenu = Menu(self.tomenu, tearoff=0)
@@ -328,6 +357,9 @@ class App:
             self.covmin = DoubleVar(value=0.0)
             self.covmax = DoubleVar(value=200.0)
             self.covlog = IntVar(value=0)
+            self.usbase = IntVar(value=0)
+            self.dsbase = IntVar(value=0)
+            self.bofile = StringVar(value='')
             self.originalxscroll = self.currxscroll
             self.originalyscroll = self.curryscroll
             self.refline = 50
@@ -627,7 +659,169 @@ class App:
                     self.selected.pop(i)
                     break
 
-    def showhitblast(self, event):
+    def rcblast(self, event):
+        self.blastmenu.post(event.x_root, event.y_root)
+        self.rctag = self.canvas.gettags(CURRENT)[0]
+        self.rcitem = self.canvas.find_withtag(CURRENT)[0]
+        self.rcpos = (event.x_root, event.y_root)
+
+    def move_query(self):
+        bcoords = self.canvas.coords(self.rcitem)
+        if len(bcoords) == 8:
+            qleftmost = min([bcoords[4], bcoords[6]])
+            sleftmost = min([bcoords[0], bcoords[2]])
+            ctag = self.rctag[:-1]
+            ymod = 0
+        if len(bcoords) == 20:
+            qleftmost = min([bcoords[0], bcoords[16]])
+            sleftmost = min([bcoords[6], bcoords[10]])
+            ctag = self.rctag[:-2]
+            if bcoords[1] == bcoords[19]:
+                ymod = self.contigheight * 2
+            else:
+                ymod = 0
+        movex = sleftmost - qleftmost
+        ccords = self.canvas.coords(ctag)
+        self.move_contig(ctag[1:], ccords[0] + movex, ccords[1] + ymod)
+
+    def goto_query(self):
+        if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
+            ctag = self.rctag[1:-2]
+        else:
+            ctag = self.rctag[1:-1]
+        self.goto(ctag)
+
+    def write_blast_window(self):
+        try:
+            self.write_blast_top.destroy()
+        except AttributeError:
+            pass
+        self.write_blast_top = Toplevel()
+        self.write_blast_top.grab_set()
+        self.write_blast_top.wm_attributes("-topmost", 1)
+        x = root.winfo_rootx() + 15
+        y = root.winfo_rooty() - 20
+        geom = "+%d+%d" % (x,y)
+        self.write_blast_top.geometry(geom)
+        self.write_blast_top.title('Write BLAST')
+        self.write_blast_frame = Frame(self.write_blast_top)
+        self.bofilelabel = Label(self.write_blast_frame, text='Output file:', anchor=E)
+        self.bofilelabel.grid(column=0, row=1, sticky=E)
+        self.bofileentry = Entry(self.write_blast_frame, textvariable=self.bofile)
+        self.bofileentry.grid(column=1, row=1)
+        self.bofilebut = Button(self.write_blast_frame, text='...', command=self.loadbo)
+        self.bofilebut.grid(column=2, row=1)
+        self.usbaselabel = Label(self.write_blast_frame, text='Upstream bases:', anchor=E)
+        self.usbaselabel.grid(column=0, row=2, sticky=E)
+        self.usbaseentry = Entry(self.write_blast_frame, textvariable=self.usbase)
+        self.usbaseentry.grid(column=1, row=2, columnspan=2, sticky=EW)
+        self.dsbaselabel = Label(self.write_blast_frame, text='Downstream bases', anchor=E)
+        self.dsbaselabel.grid(column=0, row=3, sticky=E)
+        self.dsbaseentry = Entry(self.write_blast_frame, textvariable=self.dsbase)
+        self.dsbaseentry.grid(column=1, row=3, columnspan=2, sticky=EW)
+        self.closeblastbut = Button(self.write_blast_frame, text='Ok', command=self.okwriteblast)
+        self.closeblastbut.grid(column=2, row=4, sticky=E, pady=5)
+        self.write_blast_frame.grid(padx=10, pady=10)
+
+    def okwriteblast(self):
+        try:
+            out = open(self.bofile.get(), 'w')
+        except IOError:
+            tkMessageBox.showerror('File not valid', 'Please choose a new file to write to.')
+        try:
+            self.write_blast_top.destroy()
+        except AttributeError:
+            pass
+        start = self.bwstart - self.usbase.get()
+        stop = self.bwstop + self.dsbase.get()
+        if start < 0:
+            start = 0
+        if self.bwtype == 'query':
+            seq = self.contigDict[self.bwcontig].forseq[start:stop]
+        else:
+            seq = self.refDict[self.bwcontig][start:stop]
+        out.write('>contiguity_blast_hit\n')
+        for i in range(0, len(seq), 60):
+            out.write(seq[i:i+60] + '\n')
+
+
+    def write_query(self):
+        thetag = self.canvas.gettags(self.rcitem)[-1]
+        if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
+            query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = self.selfhit[int(thetag) -1]
+        else:
+            query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = self.hitlist[int(thetag) -1]
+        self.bwtype = 'query'
+        self.bwstart = qstart
+        self.bwstop = qstop
+        self.bwcontig = query
+        self.write_blast_window()
+
+
+    def move_subject(self):
+        bcoords = self.canvas.coords(self.rcitem)
+        thetag = self.canvas.gettags(self.rcitem)[1]
+        if len(bcoords) == 8:
+            qleftmost = min([bcoords[4], bcoords[6]])
+            sleftmost = min([bcoords[0], bcoords[2]])
+            ctag = thetag[:-1]
+            ymod = 0
+        if len(bcoords) == 20:
+            qleftmost = min([bcoords[0], bcoords[16]])
+            sleftmost = min([bcoords[6], bcoords[10]])
+            ctag = thetag[:-2]
+            if bcoords[1] == bcoords[19]:
+                ymod = self.contigheight * 2
+            else:
+                ymod = 0
+        movex = qleftmost - sleftmost
+        ccords = self.canvas.coords(ctag)
+        if len(bcoords) == 20:
+            self.move_contig(ctag[1:], ccords[0] + movex, ccords[1] + ymod)
+        else:
+            self.move_contig(ctag[1:], ccords[0] + movex, ccords[1] + ymod, True)
+
+    def goto_subject(self):
+        thetag = self.canvas.gettags(self.rcitem)[1]
+        if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
+            ctag = thetag[1:-2]
+            self.goto(ctag)
+        else:
+            ctag = thetag[1:-1]
+            self.goto(ctag, True)
+
+    def write_subject(self):
+        thetag = self.canvas.gettags(self.rcitem)[-1]
+        if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
+            query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = self.selfhit[int(thetag) -1]
+            self.bwtype = 'query'
+        else:
+            query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = self.hitlist[int(thetag) -1]
+            self.bwtype = 'subject'
+        self.bwstart = rstart
+        self.bwstop = rstop
+        self.bwcontig = subject
+        self.write_blast_window()
+
+    def blasttofront(self):
+        self.canvas.lift(self.rcitem)
+
+    def blasttoback(self):
+        self.canvas.lower(self.rcitem)
+
+    def blast_black(self):
+        self.canvas.itemconfig(self.rcitem, outline='black', width=1)
+
+    def blast_blue(self):
+        self.canvas.itemconfig(self.rcitem, outline='blue', width=3)
+
+    def blast_red(self):
+        self.canvas.itemconfig(self.rcitem, outline='red', width=3)
+
+    def blast_green(self):
+        self.canvas.itemconfig(self.rcitem, outline='green', width=3)
+
+    def showhitblast(self):
         try:
             self.hitwindow.destroy()
         except:
@@ -637,8 +831,11 @@ class App:
         self.hitframe = Frame(self.hitwindow)
         self.hitwindow.geometry('+20+30')
         self.hitwindow.title('BLAST hit')
-        thetag = self.canvas.gettags(CURRENT)[-2]
-        query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = map(str, self.hitlist[int(thetag) -1])
+        thetag = self.canvas.gettags(self.rcitem)[-1]
+        if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
+            query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = map(str, self.selfhit[int(thetag) -1])
+        else:
+            query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = map(str, self.hitlist[int(thetag) -1])
         self.hl1 = Label(self.hitframe, text='Query:', anchor=E)
         self.hl1.grid(column=0, row=1)
         self.he1 = Entry(self.hitframe, textvariable=StringVar(value=query), state='readonly')
@@ -689,68 +886,81 @@ class App:
         self.he1.grid(column=1, row=12)
         self.hitframe.grid(padx=10, pady=10)
 
-
-    def showhitsblast(self, event):
+    def contig_details(self):
         try:
-            self.hitwindow.destroy()
-        except:
+            self.cd_top.destroy()
+        except AttributeError:
             pass
-        self.hitwindow = Toplevel()
-        self.hitwindow.wm_attributes("-topmost", 1)
-        self.hitframe = Frame(self.hitwindow)
-        self.hitwindow.geometry('+20+30')
-        self.hitwindow.title('BLAST hit')
-        thetag = self.canvas.gettags(CURRENT)[-2]
-        query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = map(str, self.selfhit[int(thetag) -1])
-        self.hl1 = Label(self.hitframe, text='Query:', anchor=E)
-        self.hl1.grid(column=0, row=1)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=query), state='readonly')
-        self.he1.grid(column=1, row=1)
-        self.hl1 = Label(self.hitframe, text='Subject:', anchor=E)
-        self.hl1.grid(column=0, row=2)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=subject), state='readonly')
-        self.he1.grid(column=1, row=2)
-        self.hl1 = Label(self.hitframe, text='Identity:', anchor=E)
-        self.hl1.grid(column=0, row=3)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=ident), state='readonly')
-        self.he1.grid(column=1, row=3)
-        self.hl1 = Label(self.hitframe, text='Length:', anchor=E)
-        self.hl1.grid(column=0, row=4)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=length), state='readonly')
-        self.he1.grid(column=1, row=4)
-        self.hl1 = Label(self.hitframe, text='Mismatches:', anchor=E)
-        self.hl1.grid(column=0, row=5)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=mm), state='readonly')
-        self.he1.grid(column=1, row=5)
-        self.hl1 = Label(self.hitframe, text='Indels:', anchor=E)
-        self.hl1.grid(column=0, row=6)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=indel), state='readonly')
-        self.he1.grid(column=1, row=6)
-        self.hl1 = Label(self.hitframe, text='Query start:', anchor=E)
-        self.hl1.grid(column=0, row=7)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=qstart), state='readonly')
-        self.he1.grid(column=1, row=7)
-        self.hl1 = Label(self.hitframe, text='Query end:', anchor=E)
-        self.hl1.grid(column=0, row=8)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=qstop), state='readonly')
-        self.he1.grid(column=1, row=8)
-        self.hl1 = Label(self.hitframe, text='Subject start:', anchor=E)
-        self.hl1.grid(column=0, row=9)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=rstart), state='readonly')
-        self.he1.grid(column=1, row=9)
-        self.hl1 = Label(self.hitframe, text='Subject end:', anchor=E)
-        self.hl1.grid(column=0, row=10)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=rstop), state='readonly')
-        self.he1.grid(column=1, row=10)
-        self.hl1 = Label(self.hitframe, text='E. value:', anchor=E)
-        self.hl1.grid(column=0, row=11)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=eval), state='readonly')
-        self.he1.grid(column=1, row=11)
-        self.hl1 = Label(self.hitframe, text='Bitscore:', anchor=E)
-        self.hl1.grid(column=0, row=12)
-        self.he1 = Entry(self.hitframe, textvariable=StringVar(value=bitscore), state='readonly')
-        self.he1.grid(column=1, row=12)
-        self.hitframe.grid(padx=10, pady=10)
+        self.cd_top = Toplevel()
+        self.cd_top.grab_set()
+        self.cd_top.wm_attributes("-topmost", 1)
+        x = root.winfo_rootx() + 15
+        y = root.winfo_rooty() - 20
+        geom = "+%d+%d" % (x,y)
+        self.cd_top.geometry(geom)
+        self.cd_top.title('Contig details')
+        if '_dup' in self.rctag:
+            contig = self.rctag.split('_dup')[0][1:]
+        else:
+            contig = self.rctag[1:]
+        self.cd_frame = Frame(self.cd_top)
+        self.cl1 = Label(self.cd_frame, text='Name:', anchor=E)
+        self.cl1.grid(column=0, row=1)
+        self.ce1 = Entry(self.cd_frame, textvariable=StringVar(value=contig), state='readonly')
+        self.ce1.grid(column=1, row=1)
+        self.cl1 = Label(self.cd_frame, text='Short name:', anchor=E)
+        self.cl1.grid(column=0, row=2)
+        self.ce1 = Entry(self.cd_frame, textvariable=StringVar(value=self.contigDict[contig].shortname), state='readonly')
+        self.ce1.grid(column=1, row=2)
+        self.cl1 = Label(self.cd_frame, text='GC content:', anchor=E)
+        self.cl1.grid(column=0, row=3)
+        self.ce1 = Entry(self.cd_frame, textvariable=StringVar(value=self.contigDict[contig].gccontent), state='readonly')
+        self.ce1.grid(column=1, row=3)
+        self.cl1 = Label(self.cd_frame, text='GC Skew:', anchor=E)
+        self.cl1.grid(column=0, row=4)
+        self.ce1 = Entry(self.cd_frame, textvariable=StringVar(value=self.contigDict[contig].gcskew), state='readonly')
+        self.ce1.grid(column=1, row=4)
+        self.cl1 = Label(self.cd_frame, text='AT Skew:', anchor=E)
+        self.cl1.grid(column=0, row=5)
+        self.ce1 = Entry(self.cd_frame, textvariable=StringVar(value=self.contigDict[contig].atskew), state='readonly')
+        self.ce1.grid(column=1, row=5)
+        self.cl1 = Label(self.cd_frame, text='Coverage:', anchor=E)
+        self.cl1.grid(column=0, row=6)
+        self.ce1 = Entry(self.cd_frame, textvariable=StringVar(value=self.contigDict[contig].coverage), state='readonly')
+        self.ce1.grid(column=1, row=6)
+        self.cl1 = Label(self.cd_frame, text='Length:', anchor=E)
+        self.cl1.grid(column=0, row=7)
+        self.ce1 = Entry(self.cd_frame, textvariable=StringVar(value=self.contigDict[contig].length), state='readonly')
+        self.ce1.grid(column=1, row=7)
+        self.cl1 = Label(self.cd_frame, text='To contigs:')
+        self.cl1.grid(column=1, row=8)
+        self.tolist = Listbox(self.cd_frame, height=max([len(self.contigDict[contig].to), len(self.contigDict[contig].fr)]))
+        for i in self.contigDict[contig].to:
+            if i[1]:
+                self.tolist.insert(END, str(self.contigDict[i[0]].shortname))
+            else:
+                self.tolist.insert(END, '-' + str(self.contigDict[i[0]].shortname))
+        self.frlist = Listbox(self.cd_frame, height=max([len(self.contigDict[contig].to), len(self.contigDict[contig].fr)]))
+        for i in self.contigDict[contig].fr:
+            if i[1]:
+                self.frlist.insert(END, str(self.contigDict[i[0]].shortname))
+            else:
+                self.frlist.insert(END, '-' + str(self.contigDict[i[0]].shortname))
+        self.tolist.grid(column=1, row=9)
+        self.cl1 = Label(self.cd_frame, text='From Contigs:')
+        self.cl1.grid(column=0, row=8)
+        self.frlist.grid(column=0, row=9)
+        self.cd_frame.grid(padx=10, pady=10)
+
+    def delete_blast(self):
+        self.canvas.delete(self.rcitem)
+
+    def write_canvas_ps(self):
+        try:
+            saveas = tkFileDialog.asksaveasfilename(parent=root)
+        except IOError:
+            tkMessageBox.showerror('File not valid', 'Please choose another file.')
+        self.canvas.postscript(file=saveas, colormode='color')
 
     def yview(self, *args):
         self.namelist.yview_scroll(args[0], 'units')
@@ -793,6 +1003,7 @@ class App:
 
     def removerc(self, event):
         self.rcmenu.unpost()
+        self.blastmenu.unpost()
 
     def remove_contig(self):
         thetag = self.rctag
@@ -802,7 +1013,8 @@ class App:
         sstag = thetag + 'ss'
         setag = thetag + 'se'
         thecolour = self.canvas.itemcget(thetag, "outline")
-        self.visible.remove(thetag[1:])
+        if thetag[0] == 'c':
+            self.visible.remove(thetag[1:])
         self.canvas.delete(thetag)
         self.canvas.delete(starttag)
         self.canvas.delete(endtag)
@@ -1218,8 +1430,11 @@ class App:
                     self.add_contig(i[0])
                     starty += self.contigheight + 10
 
-    def move_contig(self, contig, x, y):
-        thetag = 'c' + contig
+    def move_contig(self, contig, x, y, ref=False):
+        if ref:
+            thetag = 'r' + contig
+        else:
+            thetag = 'c' + contig
         thecoords = self.canvas.coords(thetag)
         diffx = x - thecoords[0]
         diffy = y - thecoords[1]
@@ -1562,9 +1777,12 @@ class App:
                     return
             self.goto(contig)
 
-    def goto(self, contig):
+    def goto(self, contig, ref=False):
         try:
-            x = self.canvas.coords('c' + contig)
+            if ref:
+                x = self.canvas.coords('r' + contig)
+            else:
+                x = self.canvas.coords('c' + contig)
             self.canvas.xview_moveto(max([0, x[0] - 200]) / self.currxscroll)
             self.canvas.yview_moveto(max([0, x[1] - 200]) / self.curryscroll)
         except:
@@ -2080,6 +2298,12 @@ class App:
             return
         self.reffile.set(filename)
 
+    def loadbo(self):
+        filename = tkFileDialog.askopenfilename(parent=self.write_blast_top)
+        if filename == '':
+            return
+        self.bofile.set(filename)
+
     def loadselfcomp(self):
         filename = tkFileDialog.askopenfilename(parent=self.blast_options)
         if filename == '':
@@ -2147,6 +2371,7 @@ class App:
         self.colour_options_top.wm_attributes("-topmost", 1)
         x = root.winfo_rootx() + 15
         y = root.winfo_rooty() - 20
+        self.colour_options_top.title('Colour options')
         geom = "+%d+%d" % (x,y)
         self.colour_options_top.geometry(geom)
         self.colour_options_frame = Frame(self.colour_options_top)
@@ -3651,8 +3876,8 @@ class App:
         self.selfhit.sort(key=lambda x: x[3], reverse=True)
         for i in self.selfhit:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = i
+            hitnum += 1
             if query in self.visible and subject in self.visible:
-                hitnum += 1
                 ratio = (ident - self.minident.get()) / (100 - self.minident.get())
                 if rstart < rstop and self.contigDict[query].orient[0] == self.contigDict[subject].orient[0]:
                     colour = '#%02x%02x%02x' % (168 - int(ratio * 168), 223 - int(ratio * 70), 244 - int(ratio * 40))
@@ -3843,6 +4068,14 @@ class App:
             self.canvas.create_rectangle(self.refpos[i], self.refline, \
                                          self.refpos[i] + len(self.refDict[i]) / self.scaledown.get(), self.refline + self.contigheight, \
                                          fill="#669900", tags=('r' + i, "ref", "map"))
+            if len(self.refDict[i]) > self.scaledown.get() * 100 * 2:
+                markers = self.scaledown.get() * 500
+                for j in range(markers, len(self.refDict[i]), markers):
+                    self.canvas.create_line(self.refpos[i] + j / self.scaledown.get(), self.refline + 2, self.refpos[i] + j / self.scaledown.get(), self.refline + self.contigheight - 2,
+                                            fill='white', tags=('r' + i, 'ref', 'map'))
+                    thetext = str(j)
+                    self.canvas.create_text(self.refpos[i] + j / self.scaledown.get() + 2, self.refline + self.contigheight/2,
+                     fill='white', font=self.customFont, anchor=W, text=thetext, tags=('r' + i, 'ref', 'map'))
             thetext = i
             text = self.canvas.create_text(self.refpos[i] + 2, self.refline + self.contigheight/2,\
                                             fill='white', font=self.customFont, anchor=W, text=thetext, tags=('r' + i, 'ref', 'map'))
