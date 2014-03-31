@@ -20,10 +20,13 @@ import argparse
 
 transtab = string.maketrans('atcgATCG', 'tagcTAGC')
 
+# Instead of pushing a messaged to another thread (reported in console) command line version pushes the message here
+# which will print the message to the console
 class clqueue:
     def put(self, theval):
         sys.stdout.write(theval + '\n')
 
+# Data from the GUI uses special data types, this mimics it's functionality for the command line
 class dummyVar:
     def __init__(self, theval):
         self.theval = theval
@@ -34,6 +37,7 @@ class dummyVar:
     def put(self, theval):
         self.theval = theval
 
+# Contig class, on construction calculates GC content, Skew etc.
 class contig:
     def __init__(self, name, shortname, sequence, revseq=None, coverage=None):
         self.name = name
@@ -83,6 +87,8 @@ class contig:
         self.startanchor = 0
         self.stopanchor = 0
 
+
+# checks to see if program is in the users path
 def which(program):
     def is_exe(fpath):
         return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
@@ -99,8 +105,11 @@ def which(program):
                 return True
     return False
 
+
+# the application
 class App:
     def __init__(self, master):
+        # if master is a Tk app create the application, otherwise run in command line mode
         if not master is None:
             self.menubar = Menu(master)
             self.filemenu = Menu(self.menubar, tearoff=0)
@@ -139,12 +148,9 @@ class App:
             self.selectmenu.add_command(label="Colour options", command=self.colour_options)
             self.selectmenu.add_command(label="Load special", command=self.load_special)
             self.menubar.add_cascade(label="Tools", menu=self.selectmenu)
-          #  self.specialmenu = Menu(self.menubar, tearoff=0)
-           # self.specialmenu.add_command(label="Options", command=self.specialOptions)
-           # self.specialmenu.add_command(label="Load custom")
             self.currxscroll = 1000000
             self.curryscroll = 1000000
-            self.fontsize = 12
+            self.fontsize = 12 # When zooming in/out font does scale, we create a custom font and then change the font size when we zoom
             self.customFont = tkFont.Font(family="Helvetica", size=self.fontsize)
             master.config(menu=self.menubar)
             self.panes = PanedWindow(root, orient=VERTICAL, sashrelief=SUNKEN, sashpad=5)
@@ -374,7 +380,7 @@ class App:
             self.abortqueue = Queue.Queue()
             self.abortqueue.put(False)
             self.abort = False
-        else:
+        else: # command line mode
             if args.no_overlap_edges:
                 self.getOverlap = dummyVar(0)
             else:
@@ -419,6 +425,7 @@ class App:
             self.abort = False
             self.edge_thread()
 
+    # when the optonal value in the table is changed this method is run
     def changespecial(self, theopt):
         self.speciallist.delete(0, END)
         if theopt == 'None':
@@ -525,26 +532,31 @@ class App:
             for i in self.canvas.find_withtag('contig'):
                 self.canvas.itemconfig(i, fill='#9933CC')
 
+    # send message to running threads to terminate
     def cancelprocess(self):
         self.abort = True
         self.abortqueue.put(True)
 
+    # on quit terminate running processes
     def quit(self):
         self.cancelprocess()
         self.update_console('Terminating threads.')
         self.quitpoll()
 
+    # check to see if threads are dead before quiting
     def quitpoll(self):
         self.dot_console()
         try:
             if self.thethread.is_alive():
-                root.after(1000, self.quitpoll)
+                root.after(1000, self.quitpoll) # check to see if thread is still alive in 1 second
             else:
                 root.quit()
-        except:
+        except: # or if thread is not found quit
             root.quit()
 
+    # select all visible contigs
     def select_all(self):
+        # remove all currently selected contigs
         self.namelist.delete(0, END)
         self.dirlist.delete(0, END)
         self.lengthlist.delete(0, END)
@@ -552,12 +564,14 @@ class App:
         self.selected = []
         contiglist = self.canvas.find_withtag('contig')
         newlist = []
+        # highlight all contigs and then find order
         for i in contiglist:
             self.canvas.itemconfig(i, outline='#FFCC00', width=3)
             coords = self.canvas.coords(i)
             thetag = self.canvas.gettags(i)[0]
             newlist.append((coords, thetag))
-        newlist.sort()
+        newlist.sort() # sort contigs from left to right
+        # add all contigs to the table
         for i in newlist:
             thetag = i[1]
             contig = thetag[1:]
@@ -586,7 +600,7 @@ class App:
             elif self.currspecial.get() == 'Custom':
                 self.speciallist.insert(END, self.contigDict[contig].custom)
 
-
+    # unselect all contigs
     def clear_lists(self):
         self.namelist.delete(0, END)
         self.dirlist.delete(0, END)
@@ -595,8 +609,10 @@ class App:
         self.selected = []
         contiglist = self.canvas.find_withtag('contig')
         for i in contiglist:
-            self.canvas.itemconfig(i, outline='#000000', width=1)
+            self.canvas.itemconfig(i, outline='#000000', width=1) # unhighlight all contigs
 
+
+    # load special values and colours for each contig
     def load_special(self):
         filename = tkFileDialog.askopenfilename()
         if filename == '' or filename == ():
@@ -617,10 +633,12 @@ class App:
             elif len(splitline) != 2:
                 self.update_console('Invalid column number')
 
+    # select contig
     def addtolist(self, event):
         thetag = self.canvas.gettags(CURRENT)[0]
         thecontig = self.canvas.find_withtag(thetag)[0]
         thecolour = self.canvas.itemcget(thecontig, "outline")
+        # check the colour of the contigs outline to see if already selected
         if thecolour == "#000000":
             self.canvas.itemconfig(thecontig, outline='#FFCC00', width=3)
             contig = thetag[1:]
@@ -648,7 +666,7 @@ class App:
             elif self.currspecial.get() == 'Custom':
                 self.speciallist.insert(END, self.contigDict[contig].custom)
             self.selected.append(thetag)
-        else:
+        else: # if contig selected find position in list and remove from table
             self.canvas.itemconfig(thecontig, outline='#000000', width=1)
             for i in range(len(self.selected)):
                 if self.selected[i] == thetag:
@@ -659,12 +677,14 @@ class App:
                     self.selected.pop(i)
                     break
 
+    # Post the blast menu if hit is right clicked
     def rcblast(self, event):
         self.blastmenu.post(event.x_root, event.y_root)
         self.rctag = self.canvas.gettags(CURRENT)[0]
         self.rcitem = self.canvas.find_withtag(CURRENT)[0]
         self.rcpos = (event.x_root, event.y_root)
 
+    # move the query of the hit to be aligned with the reference
     def move_query(self):
         bcoords = self.canvas.coords(self.rcitem)
         if len(bcoords) == 8:
@@ -684,6 +704,7 @@ class App:
         ccords = self.canvas.coords(ctag)
         self.move_contig(ctag[1:], ccords[0] + movex, ccords[1] + ymod)
 
+    # move to where the query is on the canvas
     def goto_query(self):
         if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
             ctag = self.rctag[1:-2]
@@ -691,6 +712,7 @@ class App:
             ctag = self.rctag[1:-1]
         self.goto(ctag)
 
+    # Open a window with the options for writing hit sequence to file
     def write_blast_window(self):
         try:
             self.write_blast_top.destroy()
@@ -723,6 +745,7 @@ class App:
         self.closeblastbut.grid(column=2, row=4, sticky=E, pady=5)
         self.write_blast_frame.grid(padx=10, pady=10)
 
+    # if the ok button is hit write sequence to file
     def okwriteblast(self):
         try:
             out = open(self.bofile.get(), 'w')
@@ -744,7 +767,7 @@ class App:
         for i in range(0, len(seq), 60):
             out.write(seq[i:i+60] + '\n')
 
-
+    # get the contig name, start, stop of the hit and open the write blast to fasta window
     def write_query(self):
         thetag = self.canvas.gettags(self.rcitem)[-1]
         if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
@@ -757,7 +780,7 @@ class App:
         self.bwcontig = query
         self.write_blast_window()
 
-
+    # move the subject of the hit so it is in line with the query
     def move_subject(self):
         bcoords = self.canvas.coords(self.rcitem)
         thetag = self.canvas.gettags(self.rcitem)[1]
@@ -776,11 +799,13 @@ class App:
                 ymod = 0
         movex = qleftmost - sleftmost
         ccords = self.canvas.coords(ctag)
+        # check to see if self hit, or hit against reference
         if len(bcoords) == 20:
             self.move_contig(ctag[1:], ccords[0] + movex, ccords[1] + ymod)
         else:
             self.move_contig(ctag[1:], ccords[0] + movex, ccords[1] + ymod, True)
 
+    # move canvas to the subject of the hit
     def goto_subject(self):
         thetag = self.canvas.gettags(self.rcitem)[1]
         if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
@@ -790,11 +815,12 @@ class App:
             ctag = thetag[1:-1]
             self.goto(ctag, True)
 
+    # Find the subject name, start, stop and open write hit to fasta window
     def write_subject(self):
         thetag = self.canvas.gettags(self.rcitem)[-1]
         if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = self.selfhit[int(thetag) -1]
-            self.bwtype = 'query'
+            self.bwtype = 'query' # tells write fasta to get sequence from contig sequences not reference sequences (bit confusing really)
         else:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = self.hitlist[int(thetag) -1]
             self.bwtype = 'subject'
@@ -803,15 +829,19 @@ class App:
         self.bwcontig = subject
         self.write_blast_window()
 
+    # move hit to the foreground
     def blasttofront(self):
         self.canvas.lift(self.rcitem)
 
+    # move hit to the background
     def blasttoback(self):
         self.canvas.lower(self.rcitem)
 
+    # make blast outline black (normal)
     def blast_black(self):
         self.canvas.itemconfig(self.rcitem, outline='black', width=1)
 
+    # highlight blast outline (blue)
     def blast_blue(self):
         self.canvas.itemconfig(self.rcitem, outline='blue', width=3)
 
@@ -821,6 +851,7 @@ class App:
     def blast_green(self):
         self.canvas.itemconfig(self.rcitem, outline='green', width=3)
 
+    # show details about the blast hit
     def showhitblast(self):
         try:
             self.hitwindow.destroy()
@@ -886,6 +917,7 @@ class App:
         self.he1.grid(column=1, row=12)
         self.hitframe.grid(padx=10, pady=10)
 
+    # show details about the contig
     def contig_details(self):
         try:
             self.cd_top.destroy()
@@ -934,13 +966,13 @@ class App:
         self.ce1.grid(column=1, row=7)
         self.cl1 = Label(self.cd_frame, text='To contigs:')
         self.cl1.grid(column=1, row=8)
-        self.tolist = Listbox(self.cd_frame, height=max([len(self.contigDict[contig].to), len(self.contigDict[contig].fr)]))
+        self.tolist = Listbox(self.cd_frame, height=max([len(self.contigDict[contig].to), len(self.contigDict[contig].fr), 10]))
         for i in self.contigDict[contig].to:
             if i[1]:
                 self.tolist.insert(END, str(self.contigDict[i[0]].shortname))
             else:
                 self.tolist.insert(END, '-' + str(self.contigDict[i[0]].shortname))
-        self.frlist = Listbox(self.cd_frame, height=max([len(self.contigDict[contig].to), len(self.contigDict[contig].fr)]))
+        self.frlist = Listbox(self.cd_frame, height=max([len(self.contigDict[contig].to), len(self.contigDict[contig].fr), 10]))
         for i in self.contigDict[contig].fr:
             if i[1]:
                 self.frlist.insert(END, str(self.contigDict[i[0]].shortname))
@@ -952,9 +984,11 @@ class App:
         self.frlist.grid(column=0, row=9)
         self.cd_frame.grid(padx=10, pady=10)
 
+    # delte blast hit
     def delete_blast(self):
         self.canvas.delete(self.rcitem)
 
+    # write canvas image to postscript file
     def write_canvas_ps(self):
         try:
             saveas = tkFileDialog.asksaveasfilename(parent=root)
@@ -962,12 +996,14 @@ class App:
             tkMessageBox.showerror('File not valid', 'Please choose another file.')
         self.canvas.postscript(file=saveas, colormode='color')
 
+    # Couldn't get scroll bar working properly with windows, bit of a hackity hack unfortuanately
     def yview(self, *args):
         self.namelist.yview_scroll(args[0], 'units')
         self.dirlist.yview_scroll(args[0], 'units')
         self.lengthlist.yview_scroll(args[0], 'units')
         self.speciallist.yview_scroll(args[0], 'units')
 
+    # scroll all lists in table on mouse wheel
     def onmousewheel(self, event):
         if event.num == 5 or event.delta == -120:
             self.namelist.yview_scroll(1, 'units')
@@ -979,32 +1015,37 @@ class App:
             self.dirlist.yview_scroll(-1, 'units')
             self.lengthlist.yview_scroll(-1, 'units')
             self.speciallist.yview_scroll(-1, 'units')
+        return "break" # scrolling in a window automatically scrolls that window by one, returning break stops this behaviour
 
-        return "break"
-
+    # what to do when contig in list is clicked (may have some functionality later)
     def setselectedcontig(self, event):
         pass
 
+    # when contig in list is double clicked move to contig on canvas
     def doublecontig(self, event):
         x = self.namelist.nearest(event.y)
         self.goto(self.namelist.get(x))
 
-
+    # on starting mouse drag record original position of contig
     def beginDrag(self, event):
         self.canvas.scan_mark(event.x, event.y)  # initial middle-mouse click
 
+    # capture dragging
     def dragCanvas(self, event):
-        self.canvas.scan_dragto(event.x, event.y, 1) # capture dragging
+        self.canvas.scan_dragto(event.x, event.y, 1)
 
+    # if contig is right clicked post menu
     def rightClick(self, event):
         self.rcmenu.post(event.x_root, event.y_root)
         self.rctag = self.canvas.gettags(CURRENT)[0]
         self.rcpos = (event.x_root, event.y_root)
 
+    # if canvas is clicked remove posted menus
     def removerc(self, event):
         self.rcmenu.unpost()
         self.blastmenu.unpost()
 
+    # remove contig and assosciated edges, blast hits, if contig is selected unselect
     def remove_contig(self):
         thetag = self.rctag
         starttag = thetag + 's'
@@ -1031,6 +1072,7 @@ class App:
                     self.selected.pop(i)
                     break
 
+    # flip the contig on the canvas
     def reverse_contig(self):
         thetag = self.rctag
         if '_dup' in thetag:
@@ -1166,6 +1208,8 @@ class App:
         except IndexError:
             pass
 
+
+    # duplicate the contig on the canvas
     def duplicate_contig(self, zecontig=None, zecoords=None):
         if zecontig == None:
             thetag = self.rctag
@@ -1203,6 +1247,9 @@ class App:
                                            fill=colour, outline="black", tags=(newtag + 'b', self.canvas.gettags(i)[1], 'blast', self.canvas.gettags(i)[-1]))
         colour = self.canvas.itemcget(thetag, "fill")
         self.canvas.create_rectangle(bb[0] + modx, bb[1] + mody, bb[2] + modx, bb[3] + mody, fill=colour, tags=(newtag, 'contig', 'map'))
+        if bb[3] + mody > self.curryscroll:
+            self.curryscroll = bb[3] + mody + 20
+            self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
         starttag = thetag + 'ss'
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
@@ -1244,6 +1291,7 @@ class App:
         except IndexError:
             pass
 
+    # add contig to the canvas
     def add_contig(self, i):
         if not i in self.visible:
             self.visible.add(i)
@@ -1308,6 +1356,9 @@ class App:
             elif self.currspecial.get() == 'None':
                 colour = '#9933CC'
             self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=('c' + i, 'contig', 'map'))
+            if y2 > self.curryscroll:
+                self.curryscroll = y2 + 20
+                self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
             if self.contigDict[i].orient[0]:
                 dir = '+'
             else:
@@ -1376,6 +1427,7 @@ class App:
                                 self.canvas.create_line(startx, starty, (startx + endx) / 2, abs(startx - endx) /4 + (starty + endy) / 2, endx, endy,
                                                         smooth=True, width=3, tags=('c' + i + 's', 'c' + newtag + 'e', 'arc'))
 
+    # bring up messsage asking which contig to be added
     def add_contig_dialogue(self):
         contig = tkSimpleDialog.askstring('Add Contig', 'Contig name')
         if contig is None:
@@ -1388,7 +1440,7 @@ class App:
             if contig != i:
                 tkMessageBox.showerror('Contig not found.', 'Please try again.')
                 return
-        if contig in self.visible:
+        if contig in self.visible: # if contig is already on canvas go to it
             self.goto(contig)
         else:
             self.contigDict[contig].visible = True
@@ -1399,7 +1451,7 @@ class App:
             self.canvas.xview_moveto(0)
             self.canvas.yview_moveto(0)
 
-
+    # add not yet visible contig adjacent to the 3' end of the selected contig
     def show_to(self):
         thetag = self.rctag
         if '_dup' in thetag:
@@ -1430,6 +1482,7 @@ class App:
                     self.add_contig(i[0])
                     starty += self.contigheight + 10
 
+    # move contig or reference to coordinates x, y
     def move_contig(self, contig, x, y, ref=False):
         if ref:
             thetag = 'r' + contig
@@ -1476,6 +1529,7 @@ class App:
                                 x[6] + diffx, x[7] + diffy, x[10] + diffx, x[11] + diffy, x[10] + diffx, x[11] + diffy, (x[16] + x[10] + diffx) / 2,
                                 abs(x[16] - (x[10] + diffx)) /4 + (x[1] + x[7] + diffy) / 2, x[16], x[17], x[16], x[17])
 
+    # move all contigs adjacent to selected contigs 3' end
     def move_to(self):
         thetag = self.rctag
         if '_dup' in thetag:
@@ -1498,6 +1552,7 @@ class App:
                     self.move_contig(i[0], startx, starty)
                     starty += self.contigheight + 10
 
+    # duplicated all contigs adjacent to the 3' end of the selected contig, if contig is not already visible add it
     def dupe_to(self):
         thetag = self.rctag
         if '_dup' in thetag:
@@ -1532,6 +1587,7 @@ class App:
                     self.add_contig(i[0])
                 starty += self.contigheight + 10
 
+    # unhighlight edges
     def to_black(self):
         thetag = self.rctag
         starttag = thetag + 's'
@@ -1548,6 +1604,7 @@ class App:
             if x[4] == bbox[2]:
                 self.canvas.itemconfig(i, fill='black')
 
+    # highlight all 3' edges
     def to_red(self):
         thetag = self.rctag
         starttag = thetag + 's'
@@ -1612,7 +1669,7 @@ class App:
             if x[4] == bbox[2]:
                 self.canvas.itemconfig(i, fill='green')
 
-
+    # duplicates of above commands except for contigs adjacent to the 5' end of the contig n.b. 3' 5' relative to orientation of contig on canvas
     def show_fr(self):
         thetag = self.rctag
         if '_dup' in thetag:
@@ -1764,6 +1821,7 @@ class App:
             if x[4] == bbox[0]:
                 self.canvas.itemconfig(i, fill='green')
 
+    # Ask for contig name then find on canvas
     def find_contig(self):
         contig = tkSimpleDialog.askstring('Find Contig', 'Contig name')
         if contig != None:
@@ -1777,6 +1835,7 @@ class App:
                     return
             self.goto(contig)
 
+    # go to chosen contig on the canvas
     def goto(self, contig, ref=False):
         try:
             if ref:
@@ -1788,6 +1847,7 @@ class App:
         except:
             pass
 
+    # zoom in (from menu)
     def zoominmenu(self):
         self.canvas.scale(ALL, 0, 0, 1.1, 1.1)
         self.currxscroll *= 1.1
@@ -1797,7 +1857,7 @@ class App:
         self.fontsize *= 1.1
         self.customFont.configure(size=int(round(self.fontsize)))
 
-
+    # zoom out (from menu)
     def zoomoutmenu(self):
         if self.fontsize < 1:
             pass
@@ -1810,17 +1870,21 @@ class App:
             self.fontsize *= 0.909090909
             self.customFont.configure(size=int(round(self.fontsize)))
 
+    # zoom in (mouse wheel)
     def zoomin(self, event):
         self.canvas.scale(ALL, 0, 0, 1.1, 1.1)
         self.currxscroll *= 1.1
         self.curryscroll *= 1.1
         self.contigheight *= 1.1
+        canvx = self.canvas.canvasx(event.x)
+        canvy = self.canvas.canvasy(event.y)
         self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
-        self.canvas.xview_moveto((self.canvas.canvasx(event.x) * 1.1 - event.x) / self.currxscroll)
-        self.canvas.yview_moveto((self.canvas.canvasy(event.y) * 1.1 - event.y) / self.curryscroll)
+        self.canvas.xview_moveto((canvx * 1.1 - event.x) / self.currxscroll)
+        self.canvas.yview_moveto((canvy * 1.1 - event.y) / self.curryscroll)
         self.fontsize *= 1.1
         self.customFont.configure(size=int(round(self.fontsize)))
 
+    # zoom out (mouse wheel)
     def zoomout(self, event):
         if self.fontsize < 1 or self.currxscroll *0.909090909 < self.canvas.winfo_width():
             pass
@@ -1829,12 +1893,15 @@ class App:
             self.currxscroll *= 0.909090909
             self.curryscroll *= 0.909090909
             self.contigheight *= 0.909090909
+            canvx = self.canvas.canvasx(event.x)
+            canvy = self.canvas.canvasy(event.y)
             self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
-            self.canvas.xview_moveto((self.canvas.canvasx(event.x) * 0.909090909 - event.x) / self.currxscroll)
-            self.canvas.yview_moveto((self.canvas.canvasy(event.y) * 0.909090909 - event.y) / self.curryscroll)
+            self.canvas.xview_moveto((canvx * 0.909090909 - event.x) / self.currxscroll)
+            self.canvas.yview_moveto((canvy * 0.909090909 - event.y) / self.curryscroll)
             self.fontsize *= 0.909090909
             self.customFont.configure(size=int(round(self.fontsize)))
 
+    # shorten contigs
     def shrink(self, event=None):
         if self.newscaledown > 10 * self.scaledown.get():
             pass
@@ -1874,7 +1941,7 @@ class App:
                         if textend >= contigend:
                             self.canvas.delete(text)
 
-
+    # lengthen contigs
     def stretch(self, event=None):
         if self.newscaledown < 0.1 * self.scaledown.get():
             pass
@@ -1919,10 +1986,11 @@ class App:
                         if textend >= contigend - 2:
                             self.canvas.delete(text)
 
-
+    # mouse wheel zoom, mousewheel event, only for windows? need to test
     def zoomcanvas(self, event):
         pass
 
+    # move canvas with arrows
     def scrollleft(self, event):
         self.canvas.xview_scroll(-2, 'units')
 
@@ -1935,13 +2003,17 @@ class App:
     def scrolldown(self, event):
         self.canvas.yview_scroll(2, 'units')
 
+    # for drag moving
     def recordMark(self, event):
         self.oldx = self.canvas.canvasx(event.x)
         self.oldy = self.canvas.canvasy(event.y)
 
+    # drag contigs places
     def dragMove(self, event):
         x = self.canvas.canvasx(event.x)
         y = self.canvas.canvasy(event.y)
+        if y < self.contigheight/2:
+            y= self.contigheight/2
         diffx = x - self.oldx
         diffy = y - self.oldy
         self.oldx = x
@@ -1983,16 +2055,14 @@ class App:
                                 x[6] + diffx, x[7] + diffy, x[10] + diffx, x[11] + diffy, x[10] + diffx, x[11] + diffy, (x[16] + x[10] + diffx) / 2,
                                 abs(x[16] - (x[10] + diffx)) /4 + (x[1] + x[7] + diffy) / 2, x[16], x[17], x[16], x[17])
 
-
+    # push text here to update the console
     def update_console(self, text):
         if self.consoletext.get() == '':
             self.consoletext.set(text)
         else:
-            self.consoletext.set(self.consoletext.get().strip('.') + '.\n' + text)
+            self.consoletext.set(self.consoletext.get().strip('.') + '.\n' + text) # strip excess dots once process has stopped running
 
-    def update_console_line(self, text):
-        self.consoletext.set(self.consoletext.get() + text)
-
+    # the . .. ... . .. ... effect in the console
     def dot_console(self):
         text = self.consoletext.get()
         if text[-3:] == '...':
@@ -2000,6 +2070,7 @@ class App:
         else:
             self.consoletext.set(text + '.')
 
+    # reset canvas to default settings
     def clear_all(self):
         self.canvas.delete(ALL)
         self.edgelist = []
@@ -2013,14 +2084,17 @@ class App:
         self.clear_lists()
         self.hitlist = None
         self.reforder = None
+        self.rightmost = None
+        self.leftmost = None
 
+    # load an assembly from a variety of files
     def load_assembly(self):
         filename = tkFileDialog.askopenfilename()
         if filename == '' or filename == ():
             return
         self.clear_all()
         self.csagfile.set(filename)
-        whatsthis = open(self.csagfile.get())
+        whatsthis = open(self.csagfile.get()) # figure out filetype from first line of file
         what = whatsthis.readline()
         whatsthis.close()
         self.contigDict = {}
@@ -2044,6 +2118,7 @@ class App:
             tkMessageBox.showerror('Invalid format', 'Contiguity cannot recognise file type.')
         self.writeWorkCont()
 
+    # load ace file
     def load_ace(self):
         ace = open(self.csagfile.get())
         getseq = False
@@ -2104,7 +2179,7 @@ class App:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
 
-
+    # load LastGRaph file
     def load_lastgraph(self):
         lg = open(self.csagfile.get())
         getseq = 0
@@ -2148,7 +2223,7 @@ class App:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
 
-
+    # Load FASTA file
     def load_fasta(self):
         fastafile = open(self.contigfile.get())
         namelist = []
@@ -2250,6 +2325,8 @@ class App:
                 self.contigDict[contigb].to.append((contiga, True, overlap))
         return True
 
+
+    # Load contiguity's native filetype
     def load_csag(self):
         csag = open(self.csagfile.get())
         for line in csag:
@@ -2292,6 +2369,7 @@ class App:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
 
+    # file dialogues, ask for filenames then set approriate variable
     def loadref(self):
         filename = tkFileDialog.askopenfilename(parent=self.blast_options)
         if filename == '':
@@ -2351,6 +2429,7 @@ class App:
         else:
             self.outfile.set(filename)
 
+    # check to see if thread should be aborted
     def aborttime(self):
         try:
             abort = self.abortqueue.get(0)
@@ -2361,6 +2440,7 @@ class App:
         except Queue.Empty:
             return False
 
+    # colour options window
     def colour_options(self):
         try:
             self.colour_options_top.destroy()
@@ -3958,6 +4038,8 @@ class App:
         self.fontsize = 12
         self.customFont.configure(size=12)
         self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
+        self.rightmost = None
+        self.leftmost = None
         if self.shorten.get() == 'No':
             for i in self.contigDict:
                 self.contigDict[i].xlength = self.contigDict[i].length / self.scaledown.get()
