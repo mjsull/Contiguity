@@ -2336,7 +2336,10 @@ class App:
                     aninstance = contig(entry, name, seq)
                 else:
                     title, entry, name, coverage, seq = line.split()
-                    coverage = float(coverage)
+                    if coverage == 'N/A':
+                        coverage = None
+                    else:
+                        coverage = float(coverage)
                     aninstance = contig(entry, name, seq, None, coverage)
                 self.contigDict[entry] = aninstance
             elif line.split()[0] == 'EDGE':
@@ -3698,7 +3701,7 @@ class App:
         if self.blastfile.get() == '':
             self.blastit = tkMessageBox.askquestion('No blast files.', 'Create BLAST output?')
             if self.blastit == 'yes':
-                if not which('blastn') or not which('makeblastdb'):
+                if (not which('blastn.exe') or not which('makeblastdb.exe')) and (not which('blastn') or not which('makeblastdb')):
                     tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST to your path, or perform the comparison yourself.')
                     return
             else:
@@ -4737,8 +4740,6 @@ parser.add_argument('-km', '--khmer', action='store_true', default=False, help='
 args = parser.parse_args()
 if args.khmer:
     import khmer
-    from khmer.khmer_args import build_counting_args, report_on_config
-    from khmer.threading_args import add_threading_args
 
 if args.command_line:
     if args.contig_file is None or args.read_file is None or args.output_folder is None:
