@@ -24,7 +24,8 @@ first = True
 temped = open('tempedge.fa', 'w')
 for line in contigfile:
     if line.startswith('NODE'):
-        junka, name, junkb, seq = line.split()
+        name = line.split()[1]
+        seq = line.split()[-1]
         revseq = seq[::-1].translate(transtab)
         aninstance = contig(name, seq, revseq)
         contigDict[name] = aninstance
