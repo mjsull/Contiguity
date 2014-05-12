@@ -85,8 +85,6 @@ for i in outpaths:
                 lall += contigDict[j].length
         if lall <= 300:
             temppaths.append(i)
-        else:
-            print 'ding'
     else:
         temppaths.append(i)
        # print i
