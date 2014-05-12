@@ -218,11 +218,6 @@ for i in edges:
                 break
     if gotit:
         SP += 1
-    else:
-        print i
-        print edgedict[i]
-        print contigDict[i[0]].fr
-        print contigDict[i[0]].to
 
 
 
