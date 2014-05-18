@@ -101,8 +101,8 @@ for i in temppaths:
         else:
             seq += contigDict[j].forseq
     edgelist.append((i[0].replace('-', ''), i[-1].replace('-', ''), len(seq)))
+    a = i[0][1:]
     if i[0][0] == '-':
-        a = i[0][1:]
         if i[-1][0] == '-':
             b = i[-1][1:]
             contigDict[a].fr.append((b, False))
