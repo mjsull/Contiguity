@@ -318,6 +318,9 @@ class App:
             self.nmercut = IntVar(value=4)
             self.nmerave = IntVar(value=10)
             self.nmersize = IntVar(value=31)
+            self.ht_size = StringVar(args.ht_size)
+            self.ht_number = IntVar(args.ht_number)
+            self.num_threads = IntVar(args.num_threads)
             self.minoverlap = IntVar(value=30)
             self.contigfile = StringVar(value='')
             self.readfile = StringVar(value='')
@@ -402,7 +405,7 @@ class App:
             self.nmerave = dummyVar(args.kmer_cutoff)
             self.nmersize = dummyVar(args.kmer_size)
             self.ht_size = dummyVar(args.ht_size)
-            self.ht_number = dummyvar(args.ht_number)
+            self.ht_number = dummyVar(args.ht_number)
             self.num_threads = dummyVar(args.num_threads)
             self.maxdist = dummyVar(args.max_distance)
             if args.kmer_cutoff == -1 or args.kmer_average == -1:
