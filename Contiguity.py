@@ -113,7 +113,7 @@ class App:
         if not master is None:
             self.menubar = Menu(master)
             self.filemenu = Menu(self.menubar, tearoff=0)
-            self.filemenu.add_command(label="Create CSAG file", command=self.create_edges)
+            self.filemenu.add_command(label="Create CAG file", command=self.create_edges)
             self.filemenu.add_command(label="Create comparison", command=self.create_comp)
             self.filemenu.add_separator()
             self.filemenu.add_command(label="Load assembly", command=self.load_assembly)
@@ -146,7 +146,7 @@ class App:
             self.selectmenu.add_command(label="Write multifasta", command=self.writeMultiFasta)
             self.selectmenu.add_separator()
             self.selectmenu.add_command(label="Colour options", command=self.colour_options)
-            self.selectmenu.add_command(label="Load special", command=self.load_special)
+            self.selectmenu.add_command(label="Load custom", command=self.load_special)
             self.menubar.add_cascade(label="Tools", menu=self.selectmenu)
             self.currxscroll = 1000000
             self.curryscroll = 1000000
@@ -199,6 +199,7 @@ class App:
             self.namelist.bind('<MouseWheel>', self.onmousewheel)
             self.namelist.bind('<Button-4>', self.onmousewheel)
             self.namelist.bind('<Button-5>', self.onmousewheel)
+            self.namelist.bind('MouseWheel', self.onmousewheel)
             self.namelist.grid(row=1, column=0, sticky=NSEW)
             self.dirlabel = Label(self.dirframe, bg='#FFFFFF', text='Strand', relief=SUNKEN, pady=4, bd=1)
             self.dirlabel.grid(row=0, column=0, sticky=NSEW, pady=2)
@@ -208,6 +209,7 @@ class App:
             self.dirlist.bind('<MouseWheel>', self.onmousewheel)
             self.dirlist.bind('<Button-4>', self.onmousewheel)
             self.dirlist.bind('<Button-5>', self.onmousewheel)
+            self.dirlist.bind('MouseWheel', self.onmousewheel)
             self.dirlist.grid(row=1, column=0, sticky=NSEW)
             self.lengthlabel = Label(self.lengthframe, text='Length', bg='#FFFFFF',  relief=SUNKEN, pady=4, bd=1)
             self.lengthlabel.grid(row=0, column=0, sticky=NSEW, pady=2)
@@ -217,6 +219,7 @@ class App:
             self.lengthlist.bind('<MouseWheel>', self.onmousewheel)
             self.lengthlist.bind('<Button-4>', self.onmousewheel)
             self.lengthlist.bind('<Button-5>', self.onmousewheel)
+            self.lengthlist.bind('MouseWheel', self.onmousewheel)
             self.lengthlist.grid(row=1, column=0, sticky=NSEW)
             self.currspecial = StringVar(value='None')
             self.speciallabel = OptionMenu(self.specialframe, self.currspecial, 'Coverage', 'GC content', 'Custom', 'GC skew', 'AT skew', 'None', command=self.changespecial)
@@ -228,6 +231,7 @@ class App:
             self.speciallist.bind('<MouseWheel>', self.onmousewheel)
             self.speciallist.bind('<Button-4>', self.onmousewheel)
             self.speciallist.bind('<Button-5>', self.onmousewheel)
+            self.speciallist.bind('MouseWheel', self.onmousewheel)
             self.speciallist.grid(row=1, column=0, sticky=NSEW)
             self.clscroll = Scrollbar(self.specialframe, orient=VERTICAL)
             self.clscroll.config(command=self.yview)
@@ -299,6 +303,7 @@ class App:
             root.bind('<Right>', self.scrollright)
             root.bind('<Up>', self.scrollup)
             root.bind('<Down>', self.scrolldown)
+            root.bind('<MouseWheel>', self.zoomcanvas)
             self.canvas.bind('<Button-5>', self.zoomout)
             self.canvas.bind('<Button-4>', self.zoomin)
             self.canvas.bind('<MouseWheel>', self.zoomcanvas)
@@ -679,9 +684,9 @@ class App:
 
     # Post the blast menu if hit is right clicked
     def rcblast(self, event):
-        self.blastmenu.post(event.x_root, event.y_root)
         self.rctag = self.canvas.gettags(CURRENT)[0]
         self.rcitem = self.canvas.find_withtag(CURRENT)[0]
+        self.blastmenu.post(event.x_root, event.y_root)
         self.rcpos = (event.x_root, event.y_root)
 
     # move the query of the hit to be aligned with the reference
@@ -863,6 +868,8 @@ class App:
         self.hitwindow.geometry('+20+30')
         self.hitwindow.title('BLAST hit')
         thetag = self.canvas.gettags(self.rcitem)[-1]
+        if thetag == 'current':
+            thetag = self.canvas.gettags(self.rcitem)[-2]
         if self.canvas.gettags(self.rcitem)[-2] == 'selfhit':
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = map(str, self.selfhit[int(thetag) -1])
         else:
@@ -988,7 +995,7 @@ class App:
     def delete_blast(self):
         self.canvas.delete(self.rcitem)
 
-    # write canvas image to postscript file
+    # write canvas image to selcript file
     def write_canvas_ps(self):
         try:
             saveas = tkFileDialog.asksaveasfilename(parent=root)
@@ -1036,8 +1043,8 @@ class App:
 
     # if contig is right clicked post menu
     def rightClick(self, event):
-        self.rcmenu.post(event.x_root, event.y_root)
         self.rctag = self.canvas.gettags(CURRENT)[0]
+        self.rcmenu.post(event.x_root, event.y_root)
         self.rcpos = (event.x_root, event.y_root)
 
     # if canvas is clicked remove posted menus
@@ -1359,10 +1366,8 @@ class App:
             if y2 > self.curryscroll:
                 self.curryscroll = y2 + 20
                 self.canvas.config(scrollregion=(0, 0, self.currxscroll, self.curryscroll))
-            if self.contigDict[i].orient[0]:
-                dir = '+'
-            else:
-                dir = '-'
+            self.contigDict[i].orient[0] = True
+            dir = '+'
             thetext = self.contigDict[i].shortname + ' ' + dir + ' ' + self.contigDict[i].strlen
             text = self.canvas.create_text(x1 + 2, y1 + self.contigheight/2, fill='white', font=self.customFont,
                                            anchor=W, text=thetext, tags=('c' + i, 'map', 'text', 'c' + i + 't'))
@@ -1595,13 +1600,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[2]:
+            if round(x[0], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='black')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[2]:
+            if round(x[4], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='black')
 
     # highlight all 3' edges
@@ -1612,13 +1617,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[2]:
+            if round(x[0], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='red')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[2]:
+            if round(x[4], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='red')
 
     def to_blue(self):
@@ -1628,13 +1633,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[2]:
+            if round(x[0], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='blue')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[2]:
+            if round(x[4], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='blue')
 
     def to_green(self):
@@ -1644,13 +1649,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[2]:
+            if round(x[0], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='green')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[2]:
+            if round(x[4], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='green')
 
     def to_yellow(self):
@@ -1660,13 +1665,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[2]:
+            if round(x[0], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='green')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[2]:
+            if round(x[4], 4) == round(bbox[2], 4):
                 self.canvas.itemconfig(i, fill='green')
 
     # duplicates of above commands except for contigs adjacent to the 5' end of the contig n.b. 3' 5' relative to orientation of contig on canvas
@@ -1688,7 +1693,7 @@ class App:
                     self.contigDict[i[0]].ypos = starty
                     self.contigDict[i[0]].xlength = self.contigDict[i[0]].length / self.newscaledown
                     self.contigDict[i[0]].xpos = startx - 10 - self.contigDict[i[0]].xlength
-                    self.add_contig(contig)
+                    self.add_contig(i[0])
                     starty += self.contigheight + 10
         else:
             for i in self.contigDict[contig].fr:
@@ -1763,13 +1768,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[0]:
+            if round(x[0], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='black')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[0]:
+            if round(x[4], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='black')
 
 
@@ -1780,13 +1785,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[0]:
+            if round(x[0], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='red')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[0]:
+            if round(x[4], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='red')
 
     def fr_blue(self):
@@ -1796,13 +1801,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[0]:
+            if round(x[0], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='blue')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[0]:
+            if round(x[4], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='blue')
 
     def fr_green(self):
@@ -1812,13 +1817,13 @@ class App:
         arcs = self.canvas.find_withtag(starttag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[0] == bbox[0]:
+            if round(x[0], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='green')
         endtag = thetag + 'e'
         arcs = self.canvas.find_withtag(endtag)
         for i in arcs:
             x = self.canvas.coords(i)
-            if x[4] == bbox[0]:
+            if round(x[4], 4) == round(bbox[0], 4):
                 self.canvas.itemconfig(i, fill='green')
 
     # Ask for contig name then find on canvas
@@ -1988,7 +1993,10 @@ class App:
 
     # mouse wheel zoom, mousewheel event, only for windows? need to test
     def zoomcanvas(self, event):
-        pass
+        if event.delta == 120:
+            self.zoomin(event)
+        elif event.delta == -120:
+            self.zoomout(event)
 
     # move canvas with arrows
     def scrollleft(self, event):
@@ -2102,11 +2110,13 @@ class App:
         if what[0] == '>':
             self.contigfile.set(filename)
             gotit = self.load_fasta()
-            if gotit:
+            if gotit == 1:
                 self.update_console('FASTA loaded.')
+            elif gotit == 2:
+                self.update_console('.dot loaded.')
         elif what.split()[0] == 'NODE':
             self.load_csag()
-            self.update_console('CSAG loaded.')
+            self.update_console('CAG loaded.')
         elif len(what.split()) == 4 and what.split()[0].isdigit() and what.split()[1].isdigit()\
             and what.split()[2].isdigit() and what.split()[3].isdigit():
             self.load_lastgraph()
@@ -2114,6 +2124,11 @@ class App:
         elif what[:2] == 'AS':
             self.load_ace()
             self.update_console('ACE file loaded.')
+        elif what.startswith('digraph adj {'):
+            self.contigfile.set(filename)
+            gotit = self.load_fasta()
+            if gotit == 2:
+                self.update_console('.dot loaded.')
         else:
             tkMessageBox.showerror('Invalid format', 'Contiguity cannot recognise file type.')
         self.writeWorkCont()
@@ -2233,6 +2248,9 @@ class App:
                 namelist.append(line.split()[0])
                 if maxlen < len(namelist[-1]):
                     maxlen = len(namelist[-1])
+        if namelist == []:
+            tkMessageBox.showerror('.dot error', 'Please make sure the FASTA sequence of this file is concatenated to the end.')
+            return None
         for i in range(maxlen):
             startletter = namelist[0][i]
             same = True
@@ -2261,9 +2279,11 @@ class App:
         fastafile = open(self.contigfile.get())
         first = True
         getgraph = 0
+        isgraph = False
         for line in fastafile:
             if line.startswith('digraph adj {'):
                 getgraph = 1
+                isgraph = True
             elif getgraph == 1:
                 getgraph = 2
             elif getgraph == 2:
@@ -2323,7 +2343,10 @@ class App:
             else:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
-        return True
+        if isgraph:
+            return 2
+        else:
+            return 1
 
 
     # Load contiguity's native filetype
@@ -2503,7 +2526,7 @@ class App:
         self.create_edges_top.grab_set()
         self.create_edges_top.wm_attributes("-topmost", 1)
         self.create_edges_top.geometry('+20+30')
-        self.create_edges_top.title('Create CSAG')
+        self.create_edges_top.title('Create CAG')
         self.create_edges_frame = Frame(self.create_edges_top)
         self.contigfilelabel = Label(self.create_edges_frame, text='Contig file:')
         self.contigfilelabel.grid(row=0, column=0, sticky=E)
@@ -2538,7 +2561,7 @@ class App:
         self.getdblabel.grid(row=0, column=0)
         self.getdbentry = Checkbutton(self.dbEdges, variable=self.getdb)
         self.getdbentry.grid(row=0, column=1)
-        self.nmersizelabel = Label(self.dbEdges, text='Nmer size:', width=30, anchor=E)
+        self.nmersizelabel = Label(self.dbEdges, text='kmer size:', width=30, anchor=E)
         self.nmersizelabel.grid(row=1, column=0)
         self.nmersizeentry = Entry(self.dbEdges, textvariable=self.nmersize)
         self.nmersizeentry.grid(row=1, column=1)
@@ -2550,11 +2573,11 @@ class App:
         self.cutautolabel.grid(row=3, column=0)
         self.cutautoentry = Checkbutton(self.dbEdges, variable=self.cutauto)
         self.cutautoentry.grid(row=3, column=1)
-        self.nmercutlabel = Label(self.dbEdges, text='Nmer cutoff:', width=30, anchor=E)
+        self.nmercutlabel = Label(self.dbEdges, text='kmer cutoff:', width=30, anchor=E)
         self.nmercutlabel.grid(row=4, column=0)
         self.nmercutentry = Entry(self.dbEdges, textvariable=self.nmercut)
         self.nmercutentry.grid(row=4, column=1)
-        self.nmeravelabel = Label(self.dbEdges, text='Nmer average:', width=30, anchor=E)
+        self.nmeravelabel = Label(self.dbEdges, text='kmer average:', width=30, anchor=E)
         self.nmeravelabel.grid(row=5, column=0)
         self.nmeraveentry = Entry(self.dbEdges, textvariable = self.nmerave)
         self.nmeraveentry.grid(row=5, column=1)
@@ -2629,7 +2652,7 @@ class App:
             try:
                 text = self.queue.get(0)
                 self.update_console(text)
-                if text != 'Creating CSAG finished.':
+                if text != 'Creating CAG finished.':
                     root.after(1000, self.update_edges)
                 return
             except Queue.Empty:
@@ -2733,12 +2756,12 @@ class App:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
         self.writeCSAG()
-        self.queue.put('Creating CSAG finished.')
+        self.queue.put('Creating CAG finished.')
 
 
     def get_overlap_edges(self):
         minoverlap, maxmm = self.minoverlap.get(), self.maxmm.get()
-        stderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
+        stderr = open(self.workingDir.get() + '/bwaerr.txt', 'w')
         subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
                          self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
         subprocess.Popen('blastn -db ' + self.workingDir.get() + '/contigdb -outfmt 6 -query ' +
@@ -3028,7 +3051,7 @@ class App:
             return
         tempread.close()
         insertsize, minpairedge, minrl = self.insertsize.get(), self.minpairedge.get(), self.minrl.get()
-        thestderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
+        thestderr = open(self.workingDir.get() + '/bwaerr.txt', 'w')
         subprocess.Popen('bowtie2-build -f ' + self.workingDir.get() + '/contigs.fa ' + self.workingDir.get() + '/fullcontigs', shell=True, stderr=thestderr, stdout=thestderr).wait()
         if readType == 'fa':
             subprocess.Popen('bowtie2 --local -x ' + self.workingDir.get() + '/fullcontigs -U ' + self.readfile.get() + ' -S ' + self.workingDir.get() + '/aln2.sam -f -a', shell=True, stderr=thestderr, stdout=thestderr).wait()
@@ -3283,7 +3306,7 @@ class App:
                             self.edgelist.append((i[1:], True, j[1:], False, 'nnnnnnnnn'))
 
     def get_nmer_freq_khmer(self):
-        nmersize, reads  = self.nmersize.get(), self.readfile.get()
+        nmersize, reads, ht_size, ht_n = self.nmersize.get(), self.readfile.get()
         n_threads = 1
         ht_size = float('2e9')
         ht_n = 4
@@ -3624,7 +3647,7 @@ class App:
             self.edgelist.append(i + (newedgelist[i],))
 
     def writeCSAG(self):
-        out = open(self.workingDir.get() + '/CSAG.txt', 'w')
+        out = open(self.workingDir.get() + '/assembly.cag', 'w')
         for i in self.contigDict:
             out.write('NODE\t' + i + '\t' + self.contigDict[i].shortname + '\t' + str(self.contigDict[i].coverage) + '\t' + self.contigDict[i].forseq + '\n')
         for i in self.edgelist:
@@ -3652,7 +3675,7 @@ class App:
         self.reffileentry.grid(column=1, row=1)
         self.reffilebutton = Button(self.frame2, text='...', command=self.loadref)
         self.reffilebutton.grid(column=2, row=1)
-        self.blastfilelabel = Label(self.frame2, text='Blast file:', anchor=E)
+        self.blastfilelabel = Label(self.frame2, text='Comparison file:', anchor=E)
         self.blastfilelabel.grid(column=0, row=2, sticky=E)
         self.blastfileentry = Entry(self.frame2, textvariable=self.blastfile)
         self.blastfileentry.grid(column=1, row=2)
@@ -3674,7 +3697,7 @@ class App:
         self.minbitscorelabel.grid(column=0, row=6, sticky=E)
         self.minbitscoreentry = Entry(self.frame2, textvariable=self.minbitscore)
         self.minbitscoreentry.grid(column=1, row=6, columnspan=2, sticky=EW)
-        self.maxevaluelabel = Label(self.frame2, text='Minimum evalue:', anchor=E)
+        self.maxevaluelabel = Label(self.frame2, text='Maximum evalue:', anchor=E)
         self.maxevaluelabel.grid(column=0, row=7, sticky=E)
         self.maxevalueentry = Entry(self.frame2, textvariable=self.maxevalue)
         self.maxevalueentry.grid(column=1, row=7, columnspan=2, sticky=EW)
@@ -3695,7 +3718,7 @@ class App:
             tkMessageBox.showerror('File doesn\'t exist', 'Please choose a valid reference file.', parent=self.blast_options)
             return
         if self.contigDict == {}:
-            tkMessageBox.showerror('Assembly not found', 'Please load a FASTA or CSAG file using load assembly before creating comparison.', parent=self.blast_options)
+            tkMessageBox.showerror('Assembly not found', 'Please load a FASTA or CAG file using load assembly before creating comparison.', parent=self.blast_options)
             self.blast_options.destroy()
             return
         if self.blastfile.get() == '':
@@ -3833,7 +3856,7 @@ class App:
         self.minbitscorelabel.grid(column=0, row=6, sticky=E)
         self.minbitscoreentry = Entry(self.frame2, textvariable=self.minbitscore)
         self.minbitscoreentry.grid(column=1, row=6, columnspan=2, sticky=EW)
-        self.maxevaluelabel = Label(self.frame2, text='Minimum evalue:', anchor=E)
+        self.maxevaluelabel = Label(self.frame2, text='Maximum evalue:', anchor=E)
         self.maxevaluelabel.grid(column=0, row=7, sticky=E)
         self.maxevalueentry = Entry(self.frame2, textvariable=self.maxevalue)
         self.maxevalueentry.grid(column=1, row=7, columnspan=2, sticky=EW)
@@ -3859,7 +3882,7 @@ class App:
             pass
         self.blast_options.destroy()
         if self.selfcomparefile.get() == '':
-            if not which('blastn') or not which('makeblastdb'):
+            if (not which('blastn.exe') or not which('makeblastdb.exe')) and (not which('blastn') or not which('makeblastdb')):
                 tkMessageBox.showerror('BLAST not found', 'Please install NCBI-BLAST or include own comparison file.')
                 return
         if self.visible == set():
@@ -3897,7 +3920,7 @@ class App:
 
     def self_hits_thread(self):
         if self.selfcomparefile.get() == '':
-            stderr = open(self.workingDir.get() + '/bwaerr.txt', 'wa')
+            stderr = open(self.workingDir.get() + '/bwaerr.txt', 'w')
             subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
                              self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
             subprocess.Popen('blastn -db ' + self.workingDir.get() + '/contigdb -outfmt 6 -num_threads 8 -query ' +
@@ -4485,6 +4508,7 @@ class App:
         candContigs = set()
         for i in self.namelist.get(0, END):
             candContigs.add(i)
+        print candContigs
         outpaths = []
         for i in candContigs:
             todo = []
@@ -4705,46 +4729,51 @@ class App:
 parser = argparse.ArgumentParser(prog='coif.py', formatter_class=argparse.RawDescriptionHelpFormatter, description='''
 Contiguity.py: A pairwise comparison and contig adjacency graph exploration tool.
 
-USAGE: Contiguity.py -cl -n <nmer_size> -ov <overlap_size> -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
+USAGE: Contiguity.py -cl -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
 
-nmer size: should be the nmer size used for assembly - for spades assemblies us a sensible value (21: coverage < 50, 41: coverage ~100, 51: coverage ~200)
-overlap size: should be 1 less than the nmer size, it should be no greater than 50 for spades assemblies
-contig file: in fasta format, don't use the scaffold files as they introduce misassemblies into plasmid contigs (velvet and spades)
-read file: Should be an interleaved fastq file - read1_left, read1_right, read2_left etc... orientated as such --> <--
+contig file: FASTA file of contigs or scaffolds
+read file: Interleaved fastq file - read1_left, read1_right, read2_left etc... orientated as such --> <--
 output folder: folder to put output files in, can and will overwrite files in this folder, will create folder if folder doesn't exist
 
 Only other option to keep in mind is -rl if the read length is not 101bp
 
-Finally if the output is null (and you expect there to be plasmids in your data, try running with -dp and/or -ns options)
-
 ''', epilog="Thanks for using Contiguity")
-parser.add_argument('-co', '--contig_file', action='store', help='fasta file of assembled contigs')
+parser.add_argument('-co', '--contig_file', action='store', help='fasta file of assembled contigs or scaffolds')
 parser.add_argument('-rf', '--read_file', action='store', help='read file')
 parser.add_argument('-o', '--output_folder', action='store', help='output folder')
-parser.add_argument('-n', '--nmer_size', action='store', type=int, help='nmer size for finding adjacent contigs')
-parser.add_argument('-max_d', '--max_distance', action='store', type=int, default=300, help='maximum distance apart in de bruijn graph for contigs to count as adjacent [300]')
-parser.add_argument('-nmer_a', '--nmer_average', action='store', type=int, default=-1, help='average nmer coverage [auto]')
-parser.add_argument('-nmer_c', '--nmer_cutoff', action='store', type=int, default=-1, help='cutoff for nmer values [auto]')
-parser.add_argument('-ov', '--overlap', action='store', type=int, default=None, help='minimum overlap to create edge')
-parser.add_argument('-rl', '--min_read_length', action='store', type=int, default=75, help='maximum read length [101]')
+parser.add_argument('-k', '--kmer_size', action='store', type=int, default=31, help='k-mer size for finding adjacent contigs [31]')
+parser.add_argument('-max_d', '--max_distance', action='store', type=int, default=300, help='maximum distance apart in the de bruijn graph for contigs to count as adjacent [300]')
+parser.add_argument('-kmer_a', '--kmer_average', action='store', type=int, default=-1, help='All k-mers above half this value will be traversed [auto]')
+parser.add_argument('-kmer_c', '--kmer_cutoff', action='store', type=int, default=-1, help='cutoff for k-mer values [auto]')
+parser.add_argument('-ov', '--overlap', action='store', type=int, default=None, help='minimum overlap to create edge [kmer_size-1]')
+parser.add_argument('-rl', '--min_read_length', action='store', type=int, default=75, help='Minimum read length [75]')
 parser.add_argument('-max_mm', '--max_mismatch', action='store', type=int, default=2, help='maximum number of mismatches to count overlap [2]')
-parser.add_argument('-lo', '--long_overlap_ident', action='store', type=int, default=85, help='minimum % identity to create an edge where there is a long overlap')
-parser.add_argument('-mp', '--minimum_pairs_edge', action='store', type=int, default=2, help='Minimum pairs to create edge')
-parser.add_argument('-is', '--max_insert_size', action='store', type=int, default=600, help='Upper bound on insert size')
-parser.add_argument('-cl', '--command_line', action='store_true', default=False, help='Don\'t remove repeat candidates')
+parser.add_argument('-lo', '--long_overlap_ident', action='store', type=int, default=85, help='minimum percent identity to create an edge where there is a long overlap [85]')
+parser.add_argument('-mp', '--minimum_pairs_edge', action='store', type=int, default=2, help='Minimum pairs to create edge [2]')
+parser.add_argument('-is', '--max_insert_size', action='store', type=int, default=600, help='Upper bound on insert size [600]')
+parser.add_argument('-cl', '--command_line', action='store_true', default=False, help='Run contiguity in command line mode')
 parser.add_argument('-no', '--no_overlap_edges', action='store_true', default=False, help='Don\'t get overlap edges')
 parser.add_argument('-nd', '--no_db_edges', action='store_true', default=False, help='Don\'t get De Bruijn edges')
 parser.add_argument('-np', '--no_paired_edges', action='store_true', default=False, help='Don\'t get paired-end edges')
-parser.add_argument('-km', '--khmer', action='store_true', default=False, help='Use khmer for De Bruijn graph contruction')
+parser.add_argument('-km', '--khmer', action='store_false', default=True, help='Don\'t use khmer for De Bruijn graph contruction (not recommended)')
 
 args = parser.parse_args()
-if args.khmer:
-    import khmer
 
 if args.command_line:
+    if args.khmer:
+        import khmer
+
     if args.contig_file is None or args.read_file is None or args.output_folder is None:
-        sys.stdout.write("Command line CSAG building requires a contig file [-co] a read file [-r] an nmersize [-n] and an output folder [-o].\n")
+        sys.stdout.write("Command line CAG building requires a contig file [-co] a read file [-r] and an output folder [-o].\n")
         sys.exit()
+    if args.khmer and args.nmer_size > 32:
+        args.nmer_size = 32
+        sys.stdout.write("Khmer's maximum kmer size is 32, setting kmer size to 32")
+    if not args.overlap is None and args.overlap > args.nmer_size:
+        sys.stdout.write("WARNING: It is strongly recommended you use a overlap size 1 less than your kmer size.")
+
+
+
     theapp = App(None)
 else:
     root = Tk()
