@@ -398,11 +398,11 @@ class App:
                 self.getPaired = dummyVar(0)
             else:
                 self.getPaired = dummyVar(1)
-            self.nmercut = dummyVar(args.nmer_average)
-            self.nmerave = dummyVar(args.nmer_cutoff)
-            self.nmersize = dummyVar(args.nmer_size)
+            self.nmercut = dummyVar(args.kmer_average)
+            self.nmerave = dummyVar(args.kmer_cutoff)
+            self.nmersize = dummyVar(args.kmer_size)
             self.maxdist = dummyVar(args.max_distance)
-            if args.nmer_cutoff == -1 or args.nmer_average == -1:
+            if args.kmer_cutoff == -1 or args.kmer_average == -1:
                 self.cutauto = dummyVar(1)
             else:
                 self.cutauto = dummyVar(0)
@@ -415,7 +415,7 @@ class App:
             self.longoveralpident = dummyVar(args.long_overlap_ident)
             self.workingDir = dummyVar(args.output_folder)
             if args.overlap is None:
-                self.minoverlap = dummyVar(args.nmer_size-1)
+                self.minoverlap = dummyVar(args.kmer_size-1)
             else:
                 self.minoverlap = dummyVar(args.minoverlap)
             if os.path.exists(self.workingDir.get()):
@@ -4766,10 +4766,10 @@ if args.command_line:
     if args.contig_file is None or args.read_file is None or args.output_folder is None:
         sys.stdout.write("Command line CAG building requires a contig file [-co] a read file [-r] and an output folder [-o].\n")
         sys.exit()
-    if args.khmer and args.nmer_size > 32:
-        args.nmer_size = 32
+    if args.khmer and args.kmer_size > 32:
+        args.kmer_size = 32
         sys.stdout.write("Khmer's maximum kmer size is 32, setting kmer size to 32")
-    if not args.overlap is None and args.overlap > args.nmer_size:
+    if not args.overlap is None and args.overlap > args.kmer_size:
         sys.stdout.write("WARNING: It is strongly recommended you use a overlap size 1 less than your kmer size.")
 
 
