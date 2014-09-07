@@ -401,6 +401,9 @@ class App:
             self.nmercut = dummyVar(args.kmer_average)
             self.nmerave = dummyVar(args.kmer_cutoff)
             self.nmersize = dummyVar(args.kmer_size)
+            self.ht_size = dummyVar(args.ht_size)
+            self.ht_number = dummyvar(args.ht_number)
+            self.num_threads = dummyVar(args.num_threads)
             self.maxdist = dummyVar(args.max_distance)
             if args.kmer_cutoff == -1 or args.kmer_average == -1:
                 self.cutauto = dummyVar(1)
@@ -2636,6 +2639,15 @@ class App:
                 return
         except:
             pass
+        try:
+            import khmer
+        except:
+            proceed_no_khmer = tkMessageBox.askyesno('Khmer not found', 'Proceed without installing Khmer (Not recommended)?')
+            if proceed_no_khmer:
+                args.khmer = False
+            else:
+                tkMessageBox.showerror('Aborted', 'Please install Khmer')
+                return
         self.create_edges_top.destroy()
         self.edgeconsole = []
         self.lasteclen = 0
@@ -3054,9 +3066,9 @@ class App:
         thestderr = open(self.workingDir.get() + '/bwaerr.txt', 'w')
         subprocess.Popen('bowtie2-build -f ' + self.workingDir.get() + '/contigs.fa ' + self.workingDir.get() + '/fullcontigs', shell=True, stderr=thestderr, stdout=thestderr).wait()
         if readType == 'fa':
-            subprocess.Popen('bowtie2 --local -x ' + self.workingDir.get() + '/fullcontigs -U ' + self.readfile.get() + ' -S ' + self.workingDir.get() + '/aln2.sam -f -a', shell=True, stderr=thestderr, stdout=thestderr).wait()
+            subprocess.Popen('bowtie2 --local -x ' + self.workingDir.get() + '/fullcontigs -U ' + self.readfile.get() + ' -S ' + self.workingDir.get() + '/aln2.sam -f -a -p ' + str(self.num_threads.get()), shell=True, stderr=thestderr, stdout=thestderr).wait()
         elif readType == 'fq':
-            subprocess.Popen('bowtie2 --local -x ' + self.workingDir.get() + '/fullcontigs -U ' + self.readfile.get() + ' -S ' + self.workingDir.get() + '/aln2.sam -q -a', shell=True, stderr=thestderr, stdout=thestderr).wait()
+            subprocess.Popen('bowtie2 --local -x ' + self.workingDir.get() + '/fullcontigs -U ' + self.readfile.get() + ' -S ' + self.workingDir.get() + '/aln2.sam -q -a -p ' + str(self.num_threads.get()), shell=True, stderr=thestderr, stdout=thestderr).wait()
         thestderr.close()
         samfile = open(self.workingDir.get() + '/aln2.sam')
         zereadpair = False
@@ -3306,7 +3318,7 @@ class App:
                             self.edgelist.append((i[1:], True, j[1:], False, 'nnnnnnnnn'))
 
     def get_nmer_freq_khmer(self):
-        nmersize, reads, ht_size, ht_n = self.nmersize.get(), self.readfile.get()
+        nmersize, reads, ht_size, ht_n, n_threads = self.nmersize.get(), self.readfile.get(), self.ht_size.get(), self.ht_number.get(), self.num_threads.get()
         n_threads = 1
         ht_size = float('2e9')
         ht_n = 4
@@ -4731,6 +4743,8 @@ Contiguity.py: A pairwise comparison and contig adjacency graph exploration tool
 
 USAGE: Contiguity.py -cl -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
 
+REQUIREMENTS: With default settings Contigutiy requires at least 8gb of free memory (RAM)
+
 contig file: FASTA file of contigs or scaffolds
 read file: Interleaved fastq file - read1_left, read1_right, read2_left etc... orientated as such --> <--
 output folder: folder to put output files in, can and will overwrite files in this folder, will create folder if folder doesn't exist
@@ -4756,6 +4770,11 @@ parser.add_argument('-no', '--no_overlap_edges', action='store_true', default=Fa
 parser.add_argument('-nd', '--no_db_edges', action='store_true', default=False, help='Don\'t get De Bruijn edges')
 parser.add_argument('-np', '--no_paired_edges', action='store_true', default=False, help='Don\'t get paired-end edges')
 parser.add_argument('-km', '--khmer', action='store_false', default=True, help='Don\'t use khmer for De Bruijn graph contruction (not recommended)')
+parser.add_argument('-nt', '--num_threads', action='store', type=int, default=1, help='Number of threads to use for hash table building with khmer and for mapping reads with bowtie')
+parser.add_argument('-ht_s', '--ht_size', action='store', type=string, default='2e9', help='Hash table size, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
+parser.add_argument('-ht_n', '--ht_number', action='store', type=int, default=4, help='Hash table number, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
+
+
 
 args = parser.parse_args()
 
