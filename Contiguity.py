@@ -4771,7 +4771,7 @@ parser.add_argument('-nd', '--no_db_edges', action='store_true', default=False, 
 parser.add_argument('-np', '--no_paired_edges', action='store_true', default=False, help='Don\'t get paired-end edges')
 parser.add_argument('-km', '--khmer', action='store_false', default=True, help='Don\'t use khmer for De Bruijn graph contruction (not recommended)')
 parser.add_argument('-nt', '--num_threads', action='store', type=int, default=1, help='Number of threads to use for hash table building with khmer and for mapping reads with bowtie')
-parser.add_argument('-ht_s', '--ht_size', action='store', type=string, default='2e9', help='Hash table size, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
+parser.add_argument('-ht_s', '--ht_size', action='store', default='2e9', help='Hash table size, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
 parser.add_argument('-ht_n', '--ht_number', action='store', type=int, default=4, help='Hash table number, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
 
 
