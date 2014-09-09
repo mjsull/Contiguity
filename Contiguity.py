@@ -318,9 +318,9 @@ class App:
             self.nmercut = IntVar(value=4)
             self.nmerave = IntVar(value=10)
             self.nmersize = IntVar(value=31)
-            self.ht_size = StringVar(args.ht_size)
-            self.ht_number = IntVar(args.ht_number)
-            self.num_threads = IntVar(args.num_threads)
+            self.ht_size = StringVar(value=args.ht_size)
+            self.ht_number = IntVar(value=args.ht_number)
+            self.num_threads = IntVar(value=args.num_threads)
             self.minoverlap = IntVar(value=30)
             self.contigfile = StringVar(value='')
             self.readfile = StringVar(value='')
@@ -2725,6 +2725,7 @@ class App:
                     self.queue.put('Nmer cutoff A set to ' + str(self.nmercut.get()))
                     self.queue.put('Nmer cutoff B set to ' + str(self.nmerave.get()))
                 abort = self.get_db_edges()
+                del self.ht
                 if abort:
                     return
             count = len(self.edgelist) - count
@@ -3341,7 +3342,6 @@ class App:
             t.start()
         for t in threads:
             t.join()
-        self.ht.save(self.workingDir.get() + '/khmer.ht')
         fp_rate = khmer.calc_expected_collisions(self.ht)
         self.queue.put('fp rate estimated to be %1.3f' % fp_rate)
         if fp_rate > 0.20:
