@@ -2100,6 +2100,7 @@ class App:
         self.reforder = None
         self.rightmost = None
         self.leftmost = None
+        self.blastfile.set('')
 
     # load an assembly from a variety of files
     def load_assembly(self):
@@ -3436,22 +3437,29 @@ class App:
                 self.nmerdict[nmer] = freq
 
     def getnmercutkhmer(self):
-        total = 0
-        totallen = 0
+        freqDict = {}
         for i in self.contigDict:
-            count = self.ht.get_median_count(self.contigDict[i].forseq.upper())[0] * self.contigDict[i].length
-            total += count
-            totallen += self.contigDict[i].length
-        tf = max([3, total / totallen / 12])
-        mf = total / totallen
-        if self.nmercut.get() == -1 or self.nmerave.get() == -1:
-            if self.nmercut.get() == -1:
-                self.nmercut.set(tf)
-            if self.nmerave.get() == -1:
-                self.nmerave.set(int(mf)/2)
-        else:
-            self.nmerave.set(int(mf)/2)
+            for j in range(0, len(self.contigDict[i].forseq.upper()) - self.nmersize.get()):
+                nmer = self.contigDict[i].forseq[j:j+self.nmersize.get()].upper()
+                count = self.ht.get(nmer)
+                if count in freqDict:
+                    freqDict[count] += 1
+                else:
+                    freqDict[count] = 1
+        tf = None
+        maxcount = 0
+        for i in range(0, max(freqDict)):
+            if i in freqDict:
+                if tf is None:
+                    tf = i
+                if freqDict[i] > maxcount:
+                    maxcount = freqDict[i]
+                    mf = i
+        if self.nmercut.get() == -1:
             self.nmercut.set(tf)
+        if self.nmerave.get() == -1:
+            self.nmerave.set(int(mf)/2)
+
 
     def getnmercut(self):
         nmerfile = open(self.nmerfile)
@@ -4332,6 +4340,9 @@ class App:
             if query in besthit:
                 if length > besthit[query][1]:
                     besthit[query] = [self.refpos[subject] + min((rstart, rstop)) / self.scaledown.get(), length]
+                if length == besthit[query][1]:
+                    if self.refpos[subject] + min((rstart, rstop)) / self.scaledown.get() < besthit[query][0]:
+                        besthit[query] = [self.refpos[subject] + min((rstart, rstop)) / self.scaledown.get(), length]
             else:
                 besthit[query] = [self.refpos[subject] + min((rstart, rstop)) / self.scaledown.get(), length]
         qpos = []
@@ -4523,7 +4534,6 @@ class App:
         candContigs = set()
         for i in self.namelist.get(0, END):
             candContigs.add(i)
-        print candContigs
         outpaths = []
         for i in candContigs:
             todo = []
