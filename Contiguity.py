@@ -3455,6 +3455,7 @@ class App:
                 if freqDict[i] > maxcount:
                     maxcount = freqDict[i]
                     mf = i
+        mf = mf/2
         if self.nmercut.get() == -1:
             self.nmercut.set(tf)
         if self.nmerave.get() == -1:
