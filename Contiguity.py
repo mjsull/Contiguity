@@ -3448,18 +3448,26 @@ class App:
                     freqDict[count] = 1
         tf = None
         maxcount = 0
-        for i in range(0, max(freqDict)):
+        total = 0
+        for i in range(max(freqDict)):
             if i in freqDict:
-                if tf is None:
-                    tf = i
                 if freqDict[i] > maxcount:
                     maxcount = freqDict[i]
                     mf = i
-        mf = mf/2
+                total += freqDict[i]
+        runningtotal = 0
+        for i in range(max(freqDict)):
+            if i in freqDict:
+                runningtotal += freqDict[i]
+                if runningtotal >= total / 10000:
+                    tf = i
+                    break
+        print tf, mf
+        sys.exit()
         if self.nmercut.get() == -1:
             self.nmercut.set(tf)
         if self.nmerave.get() == -1:
-            self.nmerave.set(int(mf)/2)
+            self.nmerave.set(mf/2)
 
 
     def getnmercut(self):
@@ -4251,7 +4259,7 @@ class App:
             self.visible.add(name)
             self.contigDict[name].xpos = currx
             self.contigDict[name].ypos = self.contigline
-            curr += self.contigDict[name].xlength + 10
+            currx += self.contigDict[name].xlength + 10
         listfile.close()
 
     def orderContigsVisible(self):
