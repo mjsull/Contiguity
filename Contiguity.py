@@ -17,6 +17,7 @@ import string
 import threading
 import Queue
 import argparse
+import platform
 
 transtab = string.maketrans('atcgATCG', 'tagcTAGC')
 
@@ -241,8 +242,7 @@ class App:
             self.canvas.tag_bind('map', '<B1-Motion>', self.dragMove)
             self.canvas.tag_bind('map', '<Button-1>', self.recordMark)
             self.canvas.tag_bind('map', '<Double-Button-1>', self.addtolist)
-            self.canvas.tag_bind('blast', '<Button-3>', self.rcblast)
-            self.canvas.tag_bind('selfhit', '<Button-3>', self.rcblast)
+
             self.blastmenu = Menu(root, tearoff=0)
             self.querymenu = Menu(self.blastmenu, tearoff=0)
             self.querymenu.add_command(label="Move", command=self.move_query)
@@ -292,9 +292,18 @@ class App:
             self.frmenu.add_command(label="move", command=self.move_fr)
             self.frmenu.add_command(label="duplicate", command=self.dupe_fr)
             self.rcmenu.add_cascade(label="fr", menu=self.frmenu)
-            self.canvas.tag_bind('map', '<Button-3>', self.rightClick)
-            self.canvas.bind('<Button-2>', self.beginDrag)
-            self.canvas.bind('<B2-Motion>', self.dragCanvas)
+            if platform.system() in ['Windows', 'Linux']:
+                self.canvas.tag_bind('blast', '<Button-3>', self.rcblast)
+                self.canvas.tag_bind('selfhit', '<Button-3>', self.rcblast)
+                self.canvas.tag_bind('map', '<Button-3>', self.rightClick)
+                self.canvas.bind('<Button-2>', self.beginDrag)
+                self.canvas.bind('<B2-Motion>', self.dragCanvas)
+            else:
+                self.canvas.tag_bind('blast', '<Button-2>', self.rcblast)
+                self.canvas.tag_bind('selfhit', '<Button-2>', self.rcblast)
+                self.canvas.tag_bind('map', '<Button-2>', self.rightClick)
+                self.canvas.bind('<Button-3>', self.beginDrag)
+                self.canvas.bind('<B3-Motion>', self.dragCanvas)
             root.bind('w', self.zoomin)
             root.bind('s', self.zoomout)
             root.bind('a', self.shrink)
