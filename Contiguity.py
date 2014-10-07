@@ -2653,8 +2653,9 @@ class App:
         except:
             pass
         try:
+            global khmer
             import khmer
-        except:
+        except ImportError:
             proceed_no_khmer = tkMessageBox.askyesno('Khmer not found', 'Proceed without installing Khmer (Not recommended)?')
             if proceed_no_khmer:
                 args.khmer = False
@@ -3471,8 +3472,6 @@ class App:
                 if runningtotal >= total / 10000:
                     tf = i
                     break
-        print tf, mf
-        sys.exit()
         if self.nmercut.get() == -1:
             self.nmercut.set(tf)
         if self.nmerave.get() == -1:
@@ -4812,7 +4811,6 @@ args = parser.parse_args()
 if args.command_line:
     if args.khmer:
         import khmer
-
     if args.contig_file is None or args.read_file is None or args.output_folder is None:
         sys.stdout.write("Command line CAG building requires a contig file [-co] a read file [-r] and an output folder [-o].\n")
         sys.exit()
