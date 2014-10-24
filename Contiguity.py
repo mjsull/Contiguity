@@ -2145,6 +2145,9 @@ class App:
             gotit = self.load_fasta()
             if gotit == 2:
                 self.update_console('.dot loaded.')
+        if what.startswith('#FASTG'):
+            self.load_fastg()
+            self.update_console('FASTG loaded.')
         else:
             tkMessageBox.showerror('Invalid format', 'Contiguity cannot recognise file type.')
         self.writeWorkCont()
@@ -2253,6 +2256,79 @@ class App:
             else:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
+
+
+    def load_fastg(self):
+        fg = open(self.csagfile.get())
+        name = None
+        for line in fg:
+            if line.startswith('#'):
+                pass
+            elif line.startswith('>'):
+                if not name is None:
+                    if '[' in seq:
+                        newseq = ''
+                        for i in seq.split('['):
+                            newseq += i.split[']'][-1]
+                        seq = newseq
+                    aninstance = contig(entry, name, seq)
+                    if name in self.contigDict:
+                        tkMessageBox.showerror('FASTG error', 'Please make sure the section of the FASTA header preceeding the first whitespace is unique.')
+                        return None
+                    else:
+                        self.contigDict[entry] = aninstance
+                if ':' in line:
+                    splitline = line.rstrip().split(':')
+                    entry = splitline[0][1:]
+                    for i in splitline[1:]:
+                        if i[0] == '~':
+                            if i[-1] == '\'':
+                                self.edgelist.append((entry, False, i[1:-1], False, 0))
+                            else:
+                                self.edgelist.append((entry, False, i[1:], True, 0))
+                        else:
+                            if i[-1] == '\'':
+                                self.edgelist.append((entry, True, i[:-1], False, 0))
+                            else:
+                                self.edgelist.append((entry, True, i, True, 0))
+                else:
+                    entry = line.rstrip()[1:-1]
+
+                if entry.startwith('NODE_'):
+                    name = entry.split('_')[1]
+                else:
+                    name = entry
+                seq = ''
+            else:
+                seq += line.rstrip()
+        if '[' in seq:
+            newseq = ''
+            for i in seq.split('['):
+                newseq += i.split[']'][-1]
+            seq = newseq
+        aninstance = contig(entry, name, seq)
+        if name in self.contigDict:
+            tkMessageBox.showerror('FASTG error', 'Please make sure the section of the FASTA header preceeding the first whitespace is unique.')
+            return None
+        else:
+            self.contigDict[entry] = aninstance
+        for i in self.edgelist:
+            contiga, dira, contigb, dirb, overlap = i
+            if dira and dirb:
+                self.contigDict[contiga].to.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, False, overlap))
+            elif dira and not dirb:
+                self.contigDict[contiga].to.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, False, overlap))
+            elif not dira and dirb:
+                self.contigDict[contiga].fr.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, True, overlap))
+            else:
+                self.contigDict[contiga].fr.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, True, overlap))
+
+
+
 
     # Load FASTA file
     def load_fasta(self):
