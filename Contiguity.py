@@ -2145,7 +2145,7 @@ class App:
             gotit = self.load_fasta()
             if gotit == 2:
                 self.update_console('.dot loaded.')
-        if what.startswith('#FASTG'):
+        elif what.startswith('#FASTG'):
             self.load_fastg()
             self.update_console('FASTG loaded.')
         else:
