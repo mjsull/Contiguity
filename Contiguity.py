@@ -2123,7 +2123,7 @@ class App:
         whatsthis.close()
         self.contigDict = {}
         self.edgelist = []
-        if what[0] == '>' and not what.rstrip()[-1] == ';':
+        if what[0] == '>':
             self.contigfile.set(filename)
             gotit = self.load_fasta()
             if gotit == 1:
@@ -2145,7 +2145,7 @@ class App:
             gotit = self.load_fasta()
             if gotit == 2:
                 self.update_console('.dot loaded.')
-        elif what.rstrip()[-1] == ';':
+        elif what.startswith('#FASTG'):
             self.load_fastg()
             self.update_console('FASTG loaded.')
         else:
@@ -2278,7 +2278,7 @@ class App:
                     else:
                         self.contigDict[entry] = aninstance
                 if ':' in line:
-                    splitline = line.rstrip()[:-1].split(':')
+                    splitline = line.rstrip().split(':')
                     entry = splitline[0][1:]
                     for i in splitline[1:]:
                         if i[0] == '~':
@@ -2294,7 +2294,7 @@ class App:
                 else:
                     entry = line.rstrip()[1:-1]
 
-                if entry.startswith('NODE_'):
+                if entry.startwith('NODE_'):
                     name = entry.split('_')[1]
                 else:
                     name = entry
@@ -2777,7 +2777,7 @@ class App:
         if self.getOverlap.get() == 1:
             self.queue.put('Finding overlaps.')
             count = len(self.edgelist)
-            self.get_overlap_edges() # find overlapping contigs and created edges between them
+            self.get_overlap_edges()
             count = len(self.edgelist) - count
             self.queue.put('Overlaps found ' + str(count) + ' edges.')
         if self.aborttime():
@@ -2785,17 +2785,17 @@ class App:
         if self.getdb.get() == 1:
             self.queue.put('Finding De Bruijn edges.')
             count = len(self.edgelist)
-            if args.khmer: # if khmer is installed use it (default) otherwise use a dictionary to build the khmer graph (slow)
+            if args.khmer:
                 abort = self.get_nmer_freq_khmer()
                 if self.aborttime() or self.abort:
                     return
-                if self.cutauto.get() == 1: # if kmer average and kmer min have not been set try to automatically find good values using khmer
-                    self.getnmercutkhmer() # find good values
+                if self.cutauto.get() == 1:
+                    self.getnmercutkhmer()
                     if self.aborttime():
                         return
                     self.queue.put('Nmer cutoff A set to ' + str(self.nmercut.get()))
                     self.queue.put('Nmer cutoff B set to ' + str(self.nmerave.get()))
-                abort = self.get_db_edges() # find edges using a de bruijn search using khmer
+                abort = self.get_db_edges()
                 if abort:
                     return
             else:
@@ -2811,7 +2811,7 @@ class App:
                         return
                     self.queue.put('Nmer cutoff A set to ' + str(self.nmercut.get()))
                     self.queue.put('Nmer cutoff B set to ' + str(self.nmerave.get()))
-                abort = self.get_db_edges() # find edges using a de bruijn search using a dictionary
+                abort = self.get_db_edges()
                 del self.ht
                 if abort:
                     return
@@ -2822,7 +2822,7 @@ class App:
         if self.getPaired.get() == 1:
             self.queue.put('Finding paired end edges.')
             count = len(self.edgelist)
-            abort = self.get_paired_edge() # find edges by mapping paired end reads to contigs
+            abort = self.get_paired_edge()
             if abort:
                 return
             count = len(self.edgelist) - count
@@ -2844,7 +2844,7 @@ class App:
         if self.aborttime():
             return
         self.queue.put(str(len(self.edgelist)) + ' edges found.')
-        for i in self.edgelist: # add the edges to the contig dictionary
+        for i in self.edgelist:
             contiga, dira, contigb, dirb, overlap = i
             if dira and dirb:
                 self.contigDict[contiga].to.append((contigb, True, overlap))
@@ -2858,30 +2858,29 @@ class App:
             else:
                 self.contigDict[contiga].fr.append((contigb, False, overlap))
                 self.contigDict[contigb].to.append((contiga, True, overlap))
-        self.writeCSAG() # write edges to file
+        self.writeCSAG()
         self.queue.put('Creating CAG finished.')
 
 
     def get_overlap_edges(self):
-        minoverlap, maxmm = self.minoverlap.get(), self.maxmm.get() # minimum overlap and maximum mismatches to create an edge
+        minoverlap, maxmm = self.minoverlap.get(), self.maxmm.get()
         stderr = open(self.workingDir.get() + '/bwaerr.txt', 'w')
         subprocess.Popen('makeblastdb -dbtype nucl -out ' + self.workingDir.get() + '/contigdb -in ' +
-                         self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait() # Using command line blast to find overlaps
+                         self.workingDir.get() + '/contigs.fa', shell=True, stdout=stderr).wait()
         subprocess.Popen('blastn -db ' + self.workingDir.get() + '/contigdb -outfmt 6 -query ' +
                          self.workingDir.get() + '/contigs.fa -out ' + self.workingDir.get() + '/contigscontigs.out', shell=True).wait()
         stderr.close()
         blastfile = open(self.workingDir.get() + '/contigscontigs.out')
-        for line in blastfile: #  iterate through the blast file
+        for line in blastfile:
             query, subject, ident, length, mm, indel, qstart, qstop, rstart, rstop, eval, bitscore = line.split()
             qstart, qstop, rstart, rstop, length, mm, indel = map(int, [qstart, qstop, rstart, rstop, length, mm, indel])
             mm = mm + indel
             if length <= minoverlap + 10:
                 maxmmrev = maxmm
             else:
-                maxmmrev = int(0.15 * length) # if overlap is longer than a the min overlap + 10 search for less exact matches - this is because long inexact overlaps occur in some assemblers (see paper)
-            # check for all orientations of overlap
+                maxmmrev = int(0.15 * length)
             if qstart - 1 <= maxmmrev and rstop - 1 <= maxmmrev and length + qstart - 2 + rstop >= minoverlap and mm + qstart + rstop - 2 <= maxmmrev \
-              and self.contigDict[query].length > qstop + 20 and self.contigDict[subject].length > rstart + 20: # because mismatches may occur at the end of alignments (and therefore won't be listed in teh aligments) we allow hits to be maxmm distance from the start of the contig
+              and self.contigDict[query].length > qstop + 20 and self.contigDict[subject].length > rstart + 20:
                 self.edgelist.append((query, False, subject, True, rstart + qstart - 1))
             if qstart - 1 <= maxmmrev and rstop >= self.contigDict[subject].length - maxmmrev and length + qstart + self.contigDict[subject].length- rstop - 1 >= minoverlap \
               and mm + qstart + self.contigDict[subject].length- rstop - 1 <= maxmmrev \
@@ -2900,11 +2899,11 @@ class App:
         nmersize, nmercut, maxdist, nmerave = self.nmersize.get(), self.nmercut.get(), self.maxdist.get(), self.nmerave.get()
         todo = [currpath]
         paths = []
-        temptodo = todo[:] # if the graph gets too complex to search through search will start again using a shorter distance !!TODO really should change this to a breadth first search so we don't need to start over
+        temptodo = todo[:]
         tempmaxdist = maxdist
         count = 0
-        while len(todo) > 0: # while there are stil paths to search
-            if len(todo) > 20000: # if the graph gets too complex reduce the max distance searched by 10
+        while len(todo) > 0:
+            if len(todo) > 20000:
                 paths = []
                 todo = temptodo[:]
                 tempmaxdist -= 10
@@ -2914,7 +2913,7 @@ class App:
             while search:
                 if len(thepath) > tempmaxdist + 20:
                     search = False
-                if len(thepath) > nmersize + 20 and thepath[-nmersize - 20:] in endnmer: # if we find a contig add path to found paths
+                if len(thepath) > nmersize + 20 and thepath[-nmersize - 20:] in endnmer:
                     paths.append(thepath)
                 if search:
                     newn = thepath[-nmersize + 1:] + 'A'
@@ -2925,18 +2924,18 @@ class App:
                     ccount = self.ht.get(newn)
                     newn = thepath[-nmersize + 1:] + 'G'
                     gcount = self.ht.get(newn)
-                    if max([acount, tcount, ccount, gcount]) < nmercut: # if coverage of the path being searched drops below the minimum coverage stop searching
+                    if max([acount, tcount, ccount, gcount]) < nmercut:
                         search = False
                     else:
-                        maxnucl = max([(acount, 'A'), (tcount, 'T'), (ccount, 'C'), (gcount, 'G')])[1] # find the most represented kmer
+                        maxnucl = max([(acount, 'A'), (tcount, 'T'), (ccount, 'C'), (gcount, 'G')])[1]
                         bases = 'ATCG'.replace(maxnucl, '')
-                        for i in bases: # look at other possible kmers and see if they should be also searched
+                        for i in bases:
                             newn = thepath[-nmersize + 1:] + i
                             if self.ht.get(newn) > nmerave:
                                 todo.append(thepath + i)
                         thepath += maxnucl
         countdict = {}
-        for i in paths: # if multiple paths end at the same contig use the most covered path
+        for i in paths:
             total = 0
             acount = 0
             for j in range(0, len(i) - nmersize):
@@ -2955,7 +2954,7 @@ class App:
 
 
 
-    def dbpath(self, currpath, endnmer): # same as dbpath khmer except using a dict instead of a khmer data structure
+    def dbpath(self, currpath, endnmer):
         nmersize, nmercut, maxdist, nmerave = self.nmersize.get(), self.nmercut.get(), self.maxdist.get(), self.nmerave.get()
         todo = [currpath]
         paths = []
@@ -3045,7 +3044,7 @@ class App:
             paths.append(countdict[i][0])
         return paths
 
-    def getPerms(self, nmer): # allow the ends of contigs to be inexact by one base when searching for paths
+    def getPerms(self, nmer):
         outlist = set()
         for i in range(len(nmer)):
             outlist.add(nmer[:i] + 'A' + nmer[i+1:])
@@ -3054,13 +3053,15 @@ class App:
             outlist.add(nmer[:i] + 'G' + nmer[i+1:])
         return(list(outlist))
 
-    def get_db_edges(self): # do a de bruijn search from each contig
+    def get_db_edges(self):
         nmersize = self.nmersize.get()
         ends = {}
-        for i in self.contigDict: # create a list of kmers that are on contig ends
+        for i in self.contigDict:
             name = i
             seq = self.contigDict[i].forseq
-            nmer = seq[:nmersize + 20] # we increase kmer size by 20 to ensure path is coming from the unassembled side of the contig
+            nmer = seq[:nmersize + 20]
+            #nmerlist = self.getPerms(nmer)
+            #for nmer in nmerlist:
             if nmer in ends:
                 ends[nmer] += ((name, True),)
             else:
@@ -3068,16 +3069,19 @@ class App:
             ends[nmer] = ((name, True),)
             nmer = seq[-nmersize - 20:]
             nmer = nmer[::-1]
-            if nmer in ends:
-                ends[nmer] += ((name, False),)
-            else:
-                ends[nmer] = ((name, False),)
-        for i in self.contigDict: # For each contig search for paths in the forward direction and then the reverse direction
+            nmer = nmer.translate(transtab)
+            nmerlist = self.getPerms(nmer)
+            for nmer in nmerlist:
+                if nmer in ends:
+                    ends[nmer] += ((name, False),)
+                else:
+                    ends[nmer] = ((name, False),)
+        for i in self.contigDict:
             if self.aborttime():
                 return True
             if args.khmer:
-                forpaths = self.dbpathkhmer(self.contigDict[i].forseq[-nmersize:], ends) # search forward through the kmer graph
-                self.contigDict[i].coverage = self.ht.get_median_count(self.contigDict[i].forseq.upper())[0] # also find kmer coverage of contigs
+                forpaths = self.dbpathkhmer(self.contigDict[i].forseq[-nmersize:], ends)
+                self.contigDict[i].coverage = self.ht.get_median_count(self.contigDict[i].forseq.upper())[0]
             else:
                 forpaths = self.dbpath(self.contigDict[i].forseq[-nmersize:], ends)
                 ncount = []
@@ -3128,7 +3132,7 @@ class App:
         return False
 
     def getflag(self, n, count=11):
-        return "".join([str((int(n) >> y) & 1) for y in range(count-1, -1, -1)]) # return binary flag from sam file
+        return "".join([str((int(n) >> y) & 1) for y in range(count-1, -1, -1)])
 
     def get_paired_edge(self):
         minoverlap = self.minoverlap.get()
@@ -3323,7 +3327,7 @@ class App:
         self.edgelist = self.edgelist + newedges
         return False
 
-    def get_long_edge(self): # this is some code to find edges with long reads, not implemented yet because all edges will be found with overlaps when using HGAP assemblies
+    def get_long_edge(self):
         readfile = open(self.readfile.get())
         longestread = 0
         first = True
