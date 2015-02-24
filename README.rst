@@ -23,7 +23,7 @@ A tool for visualising assemblies.
 
 Requirements:
     * Python 2.7+
-    * NCBI-BLAST (needed for overlap edge creation and automatic comparison 
+    * NCBI-BLAST+ (needed for overlap edge creation and automatic comparison 
       generation)
     * Bowtie 2 (needed for paired end edge creation)
 
@@ -39,9 +39,9 @@ Checking requirements are installed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You will need to install/have installed:
-    * ncbiblast >= ???
+    * ncbiblast >= 2.2.28
     * python >= 2.7 (**Python 3 is not supported**)
-    * bowtie2 >= ???
+    * bowtie2 >= 2.1.0
 
 You can check these are installed by::
     
