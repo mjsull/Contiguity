@@ -3,6 +3,19 @@ Contiguity
 
 A tool for visualising assemblies.
 
+.. image:: https://pypip.in/version/Contiguity/badge.svg
+        :target: https://pypi.python.org/pypi/Contiguity/
+        :alt: Latest Version
+
+.. image:: https://pypip.in/download/Contiguity/badge.svg
+        :target: https://pypi.python.org/pypi/Contiguity/
+        :alt: Downloads
+
+.. image:: https://travis-ci.org/BeatsonLab-MicrobialGenomics/Contiguity.svg?branch=master
+        :target: https://travis-ci.org/BeatsonLab-MicrobialGenomics/Contiguity
+        :alt: Build status
+
+
 .. image:: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_SS.png
     :alt: Contiguity Screen shot
     :align: center
