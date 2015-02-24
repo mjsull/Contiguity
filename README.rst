@@ -113,7 +113,7 @@ Contiguity version.**
 Usage/Docs
 ----------
 
-For information on how to use Contiguity please see the .. _manual
+For information on how to use Contiguity please see the _manual
 
 
 
