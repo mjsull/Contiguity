@@ -113,7 +113,8 @@ Contiguity version.**
 Usage/Docs
 ----------
 
-For information on how to use Contiguity please see the manual_
+For information on how to use Contiguity please see the .. _manual https://github.com/mjsull/Contiguity/raw/master/Contiguity_manual.pdf
+
 
 
 Citation
