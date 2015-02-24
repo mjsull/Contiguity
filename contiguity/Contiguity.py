@@ -4844,7 +4844,7 @@ class App:
         self.update_console('File written.')
 
 
-parser = argparse.ArgumentParser(prog='coif.py', formatter_class=argparse.RawDescriptionHelpFormatter, description='''
+parser = argparse.ArgumentParser(prog='Contiguity', formatter_class=argparse.RawDescriptionHelpFormatter, description='''
 Contiguity.py: A pairwise comparison and contig adjacency graph exploration tool.
 
 USAGE: Contiguity.py -cl -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
