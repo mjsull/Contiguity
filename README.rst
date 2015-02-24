@@ -3,6 +3,10 @@ Contiguity
 
 A tool for visualising assemblies.
 
+.. image:: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_SS.png
+    :alt: Contiguity Screenshot
+    :align: center
+
 
 Requirements:
     * Python 2.7+
@@ -28,11 +32,11 @@ For information on how to use Contiguity please see the manual_
 Citation
 --------
 
-Mitchell J Sullivan, Nouri Ben Zakour, Brian Forde, Mitchell Stanton-Cook & Scott A Beatson*
+If you use Contiguity in your work, please cite it using::
 
-Contiguity: Contig adjacency graph construction and visualisation
-
-https://github.com/BeatsonLab-MicrobialGenomics/Contiguity
+    Mitchell J Sullivan, Nouri Ben Zakour, Brian Forde, Mitchell Stanton-Cook & Scott A Beatson*
+    Contiguity: Contig adjacency graph construction and visualisation
+    https://github.com/BeatsonLab-MicrobialGenomics/Contiguity
 
 
 .. _manual: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_manual_0.3.pdf
