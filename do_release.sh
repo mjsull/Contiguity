@@ -22,7 +22,7 @@
 # Australia
 
 
-#VERSION=1.0.0
+#VERSION=1.0.1
 
 # Perform an install-uninstall cycle
 pip uninstall Contiguity 
