@@ -113,7 +113,7 @@ Contiguity version.**
 Usage/Docs
 ----------
 
-For information on how to use Contiguity please see the .. _manual https://github.com/mjsull/Contiguity/raw/master/Contiguity_manual.pdf
+For information on how to use Contiguity please see the .. _manual
 
 
 
@@ -127,6 +127,6 @@ If you use Contiguity in your work, please cite it using::
     https://github.com/BeatsonLab-MicrobialGenomics/Contiguity
 
 
-.. _manual: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_manual_0.3.pdf
+.. _manual: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_manual.pdf
 .. _pip: http://www.pip-installer.org/en/latest/
 .. _pip installation instructions: http://pip.readthedocs.org/en/latest/installing.html
