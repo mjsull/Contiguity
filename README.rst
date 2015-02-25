@@ -1,7 +1,8 @@
 Contiguity
 ==========
 
-A tool for visualising assemblies.
+Contiguity is a tool for constructing and visualising assembly graphs.
+It uses a linear layout so that the assembly graph can be directly compared to a reference.
 
 .. image:: https://pypip.in/version/Contiguity/badge.svg
         :target: https://pypi.python.org/pypi/Contiguity/
@@ -113,8 +114,8 @@ Contiguity version.**
 Usage/Docs
 ----------
 
-For information on how to use Contiguity please see the manual_
-
+For detailed information on how to use Contiguity please see the manual_
+otherwise see Quick Start below.
 
 
 Citation
@@ -126,6 +127,50 @@ If you use Contiguity in your work, please cite it using::
     Contiguity: Contig adjacency graph construction and visualisation
     https://github.com/BeatsonLab-MicrobialGenomics/Contiguity
 
+Quick Start
+-----------
+
+Constructing an assembly graph
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Contiguity works with Abyss (.dot), Velvet (LastGraph), newbler (.ace) and Spades (FASTG) formats.
+For all other assemblies, a assembly graph (.cag) can be created from the GUI (file->create cag file)
+or using the command line. We recommend both Velvet and Spades graphs be reconstructed using Contiguity.
+
+USAGE:
+
+    $ Contiguity.py -cl -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
+
+REQUIREMENTS: With default settings Contigutiy requires at least 8gb of free memory (RAM)
+
+contig file: FASTA file of contigs or scaffolds
+
+read file: Interleaved fastq file - read1_left, read1_right, read2_left etc... orientated as such --> <--
+
+output folder: folder to put output files in, can and will overwrite files in this folder.
+Will create folder if folder doesn't exist. Default folder (GUI) is .contiguity_wd
+
+The CAG file (output_folder/assembly.cag) can then be loaded into Contiguity.
+
+The Contiguity GUI has three main functions:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Visualising an assembly graph:
+    * Load FASTG/LastGraph/CAG etc. using "File->Load assembly"
+    * View assembly graph using "View->View Assembly"
+
+Compare assembly graph to a reference:
+    * Load FASTG/LastGraph/CAG etc. using "File->Load assembly"
+    * Create comparison to a reference by selecting "File->Create Comparison"
+    * Select a reference file and click ok, when asked if you want to generate a comparison, click "yes".
+    * View assembly graph using "View->View Assembly"
+
+Self Comparison (Long read assemblies):
+    * Load assembly (FASTA) using "File->Load assembly"
+    * Create a self comparison using "View->Self Comparison"
+    * Select "OK" and when asked if you want to generate a comparison, click "yes"
+
+For more in depth description of functionality and workflows please see the manual.
 
 .. _manual: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_manual.pdf
 .. _pip: http://www.pip-installer.org/en/latest/
