@@ -1,8 +1,36 @@
 #!/usr/bin/env python
-# Contiguity   Written by: Mitchell Sullivan   mjsull@gmail.com
-# Supervisor: Dr. Scott Beatson
-# Version 0.9 08.01.2014
-# License: GPLv3
+
+# Contiguity - Tool for visualising assemblies
+# Copyright (C) 2013-2015 Mitchell Sullivan
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Mitchell Sullivan
+# mjsull@gmail.com
+# School of Chemistry & Molecular Biosciences
+# The University of Queensland
+# Brisbane, QLD 4072.
+# Australia
+
+
+__title__ = 'Contiguity'
+__version__ = '1.0.3'
+__description__ = "Tool for visualising assemblies"
+__author__ = 'Mitchell Sullivan'
+__license__ = 'GPLv3'
+__author_email__ = "mjsull@gmail.com"
+__url__ = 'https://github.com/BeatsonLab-MicrobialGenomics/Contiguity'
+
 
 from Tkinter import *
 import math
@@ -4844,7 +4872,7 @@ class App:
         self.update_console('File written.')
 
 
-parser = argparse.ArgumentParser(prog='coif.py', formatter_class=argparse.RawDescriptionHelpFormatter, description='''
+parser = argparse.ArgumentParser(prog='Contiguity', formatter_class=argparse.RawDescriptionHelpFormatter, description='''
 Contiguity.py: A pairwise comparison and contig adjacency graph exploration tool.
 
 USAGE: Contiguity.py -cl -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
