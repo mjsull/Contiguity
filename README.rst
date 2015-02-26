@@ -5,6 +5,7 @@ Contiguity is a tool for constructing and visualising assembly graphs.
 It uses a linear layout so that the assembly graph can be directly compared 
 to a reference.
 
+
 .. image:: https://pypip.in/version/Contiguity/badge.svg
         :target: https://pypi.python.org/pypi/Contiguity/
         :alt: Latest Version
@@ -21,6 +22,7 @@ to a reference.
 .. image:: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_SS.png
     :alt: Contiguity Screen shot
     :align: center
+
 
 Requirements:
     * Python 2.7+
@@ -133,7 +135,7 @@ Contiguity GUI (file->create cag file) or using the command line.
 **We recommend that both Velvet and SPAdes graphs be reconstructed using 
 the Contiguity CAG format.**
 
-You can read more about the CAG in the manual_
+You can read more about the CAG in the manual_.
 
 
 Generation of the CAG file
@@ -192,7 +194,7 @@ If you use Contiguity in your work, please cite it using::
 
 
 
-.. _manual: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/blob/master/docs/manual/Contiguity_manual.pdf
+.. _manual: https://github.com/BeatsonLab-MicrobialGenomics/Contiguity/raw/master/docs/manual/Contiguity_manual.pdf
 .. _pip: http://www.pip-installer.org/en/latest/
 .. _pip installation instructions: http://pip.readthedocs.org/en/latest/installing.html
 .. _ABySS: http://www.bcgsc.ca/platform/bioinfo/software/abyss 
