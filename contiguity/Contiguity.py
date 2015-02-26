@@ -24,7 +24,7 @@
 
 
 __title__ = 'Contiguity'
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 __description__ = "Tool for visualising assemblies"
 __author__ = 'Mitchell Sullivan'
 __license__ = 'GPLv3'
