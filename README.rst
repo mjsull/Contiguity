@@ -40,7 +40,7 @@ Checking requirements are installed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You will need to install/have installed:
-    * ncbiblast >= 2.2.28
+    * ncbiblast+ >= 2.2.28
     * python >= 2.7 (**Python 3 is not supported**)
     * bowtie2 >= 2.1.0
 
@@ -177,7 +177,7 @@ There are 3 main functions of the Contiguity GUI -
     * Select "OK" and when asked if you want to generate a comparison, click 
       "yes"
 
-For more in depth description of functionality and workflows please see the 
+For more in depth description of functionality and work flows please see the 
 manual_.
 
 
