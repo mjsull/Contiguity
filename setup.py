@@ -45,6 +45,10 @@ with open('requirements.txt') as fin:
     for line in lines:
         requires.append(line.strip())
 
+# reomove khmer if installing on windows
+if sys.platform == 'win32':
+    requires = [x for x in requires if not x.startswith('khmer')]
+
 # Build lists to package the docs
 html, sources, static = [], [], []
 html_f = glob.glob('docs/_build/html/*')
