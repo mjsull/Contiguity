@@ -2760,7 +2760,7 @@ class App:
             global khmer
             import khmer
         except ImportError:
-            proceed_no_khmer = tkMessageBox.askyesno('Khmer not found', 'Proceed without installing Khmer (Not recommended)?')
+            proceed_no_khmer = tkMessageBox.askyesno('Khmer not found.', 'Proceed without installing Khmer? (not recommended - see manual)?')
             if proceed_no_khmer:
                 args.khmer = False
             else:
@@ -4913,6 +4913,8 @@ parser.add_argument('-ht_n', '--ht_number', action='store', type=int, default=4,
 args = parser.parse_args()
 
 if args.command_line:
+    if platform.system() == 'Windows':
+        args.khmer = False
     if args.khmer:
         import khmer
     if args.contig_file is None or args.read_file is None or args.output_folder is None:
