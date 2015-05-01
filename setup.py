@@ -3,6 +3,7 @@
 import os
 import sys
 import glob
+import platform
 
 # Try and import pip. We'll stop if it is not present
 try:
@@ -46,7 +47,7 @@ with open('requirements.txt') as fin:
         requires.append(line.strip())
 
 # reomove khmer if installing on windows
-if sys.platform == 'win32':
+if platform.system() == 'Windows':
     requires = [x for x in requires if not x.startswith('khmer')]
 
 # Build lists to package the docs
