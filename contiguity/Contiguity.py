@@ -3437,26 +3437,15 @@ class App:
                             self.edgelist.append((i[1:], True, j[1:], False, 'nnnnnnnnn'))
 
     def get_nmer_freq_khmer(self):
-        nmersize, reads, ht_size, ht_n, n_threads = self.nmersize.get(), self.readfile.get(), self.ht_size.get(), self.ht_number.get(), self.num_threads.get()
-        n_threads = 1
+        nmersize, reads, ht_size, ht_n = self.nmersize.get(), self.readfile.get(), self.ht_size.get(), self.ht_number.get()
         ht_size = float('2e9')
         ht_n = 4
         bigcount = True
-        self.ht = khmer.new_counting_hash(nmersize, ht_size, ht_n, n_threads) # HT_size, number ht, threads
+        self.ht = khmer.new_counting_hash(nmersize, ht_size, ht_n) # HT_size, number ht, threads
         self.ht.set_use_bigcount(bigcount)
-        rparser = khmer.ReadParser(reads, n_threads)
-        threads = []
+        rparser = khmer.ReadParser(reads)
         self.queue.put('consuming input ' + reads)
-        for tnum in xrange(n_threads):
-            t = \
-                threading.Thread(
-                    target=self.ht.consume_fasta_with_reads_parser,
-                    args=(rparser, )
-                )
-            threads.append(t)
-            t.start()
-        for t in threads:
-            t.join()
+        self.ht.consume_fasta_with_reads_parser(rparser)
         fp_rate = khmer.calc_expected_collisions(self.ht)
         self.queue.put('fp rate estimated to be %1.3f' % fp_rate)
         if fp_rate > 0.20:
@@ -4904,7 +4893,7 @@ parser.add_argument('-no', '--no_overlap_edges', action='store_true', default=Fa
 parser.add_argument('-nd', '--no_db_edges', action='store_true', default=False, help='Don\'t get De Bruijn edges')
 parser.add_argument('-np', '--no_paired_edges', action='store_true', default=False, help='Don\'t get paired-end edges')
 parser.add_argument('-km', '--khmer', action='store_false', default=True, help='Don\'t use khmer for De Bruijn graph contruction (not recommended)')
-parser.add_argument('-nt', '--num_threads', action='store', type=int, default=1, help='Number of threads to use for hash table building with khmer and for mapping reads with bowtie')
+parser.add_argument('-nt', '--num_threads', action='store', type=int, default=1, help='Number of threads to use for mapping reads with bowtie [1]')
 parser.add_argument('-ht_s', '--ht_size', action='store', default='2e9', help='Hash table size, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
 parser.add_argument('-ht_n', '--ht_number', action='store', type=int, default=4, help='Hash table number, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
 
