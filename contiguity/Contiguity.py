@@ -2176,9 +2176,44 @@ class App:
         elif what.startswith('#FASTG'):
             self.load_fastg()
             self.update_console('FASTG loaded.')
+        elif what.startswith('H VN:Z:'):
+            self.load_gfa()
+            self.update_console('GFA loaded.')
         else:
             tkMessageBox.showerror('Invalid format', 'Contiguity cannot recognise file type.')
         self.writeWorkCont()
+
+    def load_gfa(self):
+        with open(self.csagfile.get()) as gfa:
+            for line in gfa:
+                if line.startswith('S'):
+                    name = line.split()[1]
+                    seq = line.split()[2]
+                    aninstance = contig(name, name, seq)
+                    self.contigDict[name] = aninstance
+                if line.startswith('L') or line.startswith('C'):
+                    splitline = line.split()
+                    if splitline[2] == '+':
+                        dira = True
+                    else:
+                        dira = False
+                    if splitline[4] == '+':
+                        dirb = True
+                    else:
+                        dirb = False
+                    cigar = splitline[5]
+                    intstring = ''
+                    overlap = 0
+                    for i in cigar:
+                        if i.isdigit():
+                            intstring += i
+                        else:
+                            if i in ['M', 'D', 'N', 'H', 'P']:
+                                overlap += int(intstring)
+                                intstring = ''
+                    self.edgelist.append((splitline[1], dira, splitline[3], dirb, overlap))
+
+
 
     # load ace file
     def load_ace(self):
