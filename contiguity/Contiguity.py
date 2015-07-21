@@ -2141,7 +2141,7 @@ class App:
 
     # load an assembly from a variety of files
     def load_assembly(self):
-        filename = tkFileDialog.askopenfilename()
+        filename = tkFileDialog.askopenfilename(title='select assembly graph file')
         if filename == '' or filename == ():
             return
         self.clear_all()
@@ -2176,7 +2176,7 @@ class App:
         elif what.startswith('#FASTG'):
             self.load_fastg()
             self.update_console('FASTG loaded.')
-        elif what.startswith('H VN:Z:'):
+        elif what.startswith('H\tVN:Z:'):
             self.load_gfa()
             self.update_console('GFA loaded.')
         else:
@@ -2184,14 +2184,32 @@ class App:
         self.writeWorkCont()
 
     def load_gfa(self):
+        seqdict = {}
         with open(self.csagfile.get()) as gfa:
             for line in gfa:
-                if line.startswith('S'):
-                    name = line.split()[1]
+                if line.startswith('S\t'):
+                    sname = line.split()[1]
                     seq = line.split()[2]
-                    aninstance = contig(name, name, seq)
-                    self.contigDict[name] = aninstance
-                if line.startswith('L') or line.startswith('C'):
+                    if seq == '*' and seqdict == {}:
+                        fasta = tkFileDialog.askopenfilename(title='select FASTA file.')
+                        with open(fasta) as f:
+                            first = True
+                            for faline in f:
+                                if faline.startswith('>'):
+                                    if first:
+                                        first = False
+                                    else:
+                                        seqdict[name] = seq
+                                    name = faline[1:].split()[0]
+                                    seq = ''
+                                else:
+                                    seq += faline.rstrip()
+                            seqdict[name] = seq
+                    if seq == '*':
+                        seq = seqdict[sname]
+                    aninstance = contig(sname, sname, seq)
+                    self.contigDict[sname] = aninstance
+                if line.startswith('L\t') or line.startswith('C\t'):
                     splitline = line.split()
                     if splitline[2] == '+':
                         dira = True
@@ -2212,7 +2230,20 @@ class App:
                                 overlap += int(intstring)
                                 intstring = ''
                     self.edgelist.append((splitline[1], dira, splitline[3], dirb, overlap))
-
+        for i in self.edgelist:
+            contiga, dira, contigb, dirb, overlap = i
+            if dira and dirb:
+                self.contigDict[contiga].to.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, False, overlap))
+            elif dira and not dirb:
+                self.contigDict[contiga].to.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, False, overlap))
+            elif not dira and dirb:
+                self.contigDict[contiga].fr.append((contigb, True, overlap))
+                self.contigDict[contigb].fr.append((contiga, True, overlap))
+            else:
+                self.contigDict[contiga].fr.append((contigb, False, overlap))
+                self.contigDict[contigb].to.append((contiga, True, overlap))
 
 
     # load ace file
