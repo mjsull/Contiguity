@@ -4935,20 +4935,27 @@ License: GPLv3
 
 USAGE: Contiguity.py -cl -c <contig_file.fa> -fq <read_file.fq> -o <output_folder>
 
-REQUIREMENTS: With default settings Contigutiy requires at least 8gb of free memory (RAM)
-
 contig file: FASTA file of contigs or scaffolds
 read file: Interleaved fastq file - read1_left, read1_right, read2_left etc... orientated as such --> <--
 output folder: folder to put output files in, can and will overwrite files in this folder, will create folder if folder doesn't exist
 
-Only other option to keep in mind is -rl if the read length is not 101bp
+REQUIREMENTS: With default settings Contigutiy requires at least (Potentially more) 6gb of free memory (RAM). This is
+because Contiguity uses Khmer to create a De Bruijn graph.
+
+If you are running into memory issues (e.g. the process is being killed by the Operating system (killed 9))
+you may want to reduce the hash table number or hash table size (using the flags -ht_n and -ht_s), or free up more memory.
+For large datasets more memory may need to be used.
+please read http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html for more information about hash tables
+
+The only other option to keep in mind is -rl if the read length is not 101bp, you may want to increase this value
+for longer read lengths, or decrease for shorter read lengths (75% of maximum read length seems to work well).
 
 ''', epilog="Thanks for using Contiguity")
 parser.add_argument('-co', '--contig_file', action='store', help='fasta file of assembled contigs or scaffolds')
 parser.add_argument('-rf', '--read_file', action='store', help='read file')
 parser.add_argument('-o', '--output_folder', action='store', help='output folder')
 parser.add_argument('-k', '--kmer_size', action='store', type=int, default=31, help='k-mer size for finding adjacent contigs [31]')
-parser.add_argument('-max_d', '--max_distance', action='store', type=int, default=300, help='maximum distance apart in the de bruijn graph for contigs to count as adjacent [300]')
+parser.add_argument('-max_d', '--max_distance', action='store', type=int, default=200, help='maximum distance apart in the de bruijn graph for contigs to count as adjacent [300]')
 parser.add_argument('-kmer_a', '--kmer_average', action='store', type=int, default=-1, help='All k-mers above half this value will be traversed [auto]')
 parser.add_argument('-kmer_c', '--kmer_cutoff', action='store', type=int, default=-1, help='cutoff for k-mer values [auto]')
 parser.add_argument('-ov', '--overlap', action='store', type=int, default=None, help='minimum overlap to create edge [kmer_size-1]')
@@ -4963,8 +4970,8 @@ parser.add_argument('-nd', '--no_db_edges', action='store_true', default=False, 
 parser.add_argument('-np', '--no_paired_edges', action='store_true', default=False, help='Don\'t get paired-end edges')
 parser.add_argument('-km', '--khmer', action='store_false', default=True, help='Don\'t use khmer for De Bruijn graph contruction (not recommended)')
 parser.add_argument('-nt', '--num_threads', action='store', type=int, default=1, help='Number of threads to use for mapping reads with bowtie [1]')
-parser.add_argument('-ht_s', '--ht_size', action='store', default='2e9', help='Hash table size, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
-parser.add_argument('-ht_n', '--ht_number', action='store', type=int, default=4, help='Hash table number, for more information check http://khmer.readthedocs.org/en/v1.1/choosing-table-sizes.html')
+parser.add_argument('-ht_s', '--ht_size', action='store', default='1e9', help='Hash table size.')
+parser.add_argument('-ht_n', '--ht_number', action='store', type=int, default=4, help='Hash table number.')
 
 
 
