@@ -5,9 +5,9 @@ Contiguity is a tool for constructing and visualising assembly graphs.
 It uses a linear layout so that the assembly graph can be directly compared 
 to a reference.
 
-The main website for contiguity can be found [here](http://mjsull.github.io/Contiguity)
+The main website for contiguity can be found at http://mjsull.github.io/Contiguity
 
-Contiguity can be downloaded from [here](http://mjsull.github.io/Contiguity/files.html)
+Contiguity can be downloaded from http://mjsull.github.io/Contiguity/files.html
 
 For detailed information on how to use Contiguity please see the manual_
 otherwise see Quick Start below.
